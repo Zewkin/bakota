@@ -13,10 +13,10 @@ const managerQuery = (from?: string, to?: string, productId?: number, status?: n
     .select('bookings.manager_id')
     .count<{ manager_id: number; total_count: number }[]>({ total_count: '*' })
     .sum({
-      total_amount: db.raw('COALESCE(bookings.soldprice, products.price * (1 - bookings.discount/100))')
+      total_amount: db.raw('COALESCE(bookings.soldprice, products.price * bookings.pax * (1 - bookings.discount/100))')
     })
     .sum({
-      total_commission: db.raw('COALESCE(bookings.soldprice, products.price * (1 - bookings.discount/100)) * (COALESCE(commissions.commission, 0) / 100)')
+      total_commission: db.raw('COALESCE(bookings.soldprice, products.price * bookings.pax * (1 - bookings.discount/100)) * (COALESCE(commissions.commission, 0) / 100)')
     })
     .join('products', 'products.id', 'bookings.product_id')
     .leftJoin('commissions', function () {
@@ -38,7 +38,7 @@ const serviceQuery = (from?: string, to?: string, status?: number, productId?: n
     .count({ total_count: '*' })
     .sum({ total_pax: 'bookings.pax' })
     .sum({
-      total_amount: db.raw('COALESCE(bookings.soldprice, products.price * (1 - bookings.discount/100))')
+      total_amount: db.raw('COALESCE(bookings.soldprice, products.price * bookings.pax * (1 - bookings.discount/100))')
     })
     .sum({
       total_rent: db.raw('CASE WHEN products.type = 1 THEN 1 ELSE 0 END')

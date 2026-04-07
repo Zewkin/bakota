@@ -50,6 +50,13 @@ export default function BookingFormPage() {
     () => activeService ? generateTimeSlots(activeService.start_time, activeService.end_time) : [],
     [activeService]
   );
+  const maxPax = activeService?.maxpax || 99;
+
+  useEffect(() => {
+    if (pax > maxPax) {
+      setPax(maxPax);
+    }
+  }, [maxPax, pax]);
 
   const searchCustomer = async () => {
     if (tel.length < 3) return;
@@ -183,7 +190,7 @@ export default function BookingFormPage() {
           </Picker>
         </Form.Item>
         <Form.Item label="Кількість">
-          <Stepper min={1} max={99} value={pax} onChange={setPax} />
+          <Stepper min={1} max={maxPax} value={pax} onChange={setPax} />
         </Form.Item>
         <Form.Item label="Аванс, грн">
           <Input type="number" value={String(avans)} onChange={(v) => setAvans(Number(v) || 0)} />

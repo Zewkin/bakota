@@ -5,14 +5,11 @@ import { BOOKING_STATUS } from '@/types';
 interface Props {
   booking: Booking;
   product?: Product;
-  slotHeight: number;
   onClick: (booking: Booking) => void;
 }
 
-export default function BookingCell({ booking, product, slotHeight, onClick }: Props) {
+export default function BookingCell({ booking, product, onClick }: Props) {
   const hours = product?.hours || 1;
-  const heightSlots = hours * 2; // 30-min per slot
-  const height = heightSlots * slotHeight - 2;
 
   const now = dayjs();
   const bookingEnd = dayjs(`${booking.date_start} ${booking.start_time}`).add(hours, 'hour');
@@ -33,7 +30,7 @@ export default function BookingCell({ booking, product, slotHeight, onClick }: P
   return (
     <div
       className={classes}
-      style={{ backgroundColor: bgColor, height }}
+      style={{ backgroundColor: bgColor }}
       onClick={(e) => { e.stopPropagation(); onClick(booking); }}
     >
       <div>{booking.customer_name}</div>

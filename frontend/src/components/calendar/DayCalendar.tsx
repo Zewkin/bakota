@@ -17,6 +17,8 @@ interface Props {
 }
 
 const SLOT_HEIGHT = 44;
+const TIME_LABEL_WIDTH = 48;
+const COLUMN_WIDTH = 84;
 
 export default function DayCalendar({ service, bookings, products, blockedTimes, date }: Props) {
   const navigate = useNavigate();
@@ -25,34 +27,56 @@ export default function DayCalendar({ service, bookings, products, blockedTimes,
   const slots = useMemo(() => generateTimeSlots(service.start_time, service.end_time), [service]);
   const columns = Math.max(service.maxpax, 1);
   const productMap = useMemo(() => Object.fromEntries(products.map((p) => [p.id, p])), [products]);
+  const getDurationSlots = (product?: Product) => Math.max(1, Math.ceil((product?.hours || 1) * 2));
 
-  // Map bookings to columns (greedy: assign to first free column)
+  // Map bookings to contiguous column spans.
   const bookingLayout = useMemo(() => {
-    const layout: { booking: Booking; col: number; slotIndex: number }[] = [];
+    const layout: { booking: Booking; colStart: number; colSpan: number; slotIndex: number; durationSlots: number }[] = [];
     const colEndSlot = new Array(columns).fill(0);
 
     const sorted = [...bookings]
       .filter((b) => b.service_id === service.id)
-      .sort((a, b) => a.start_time.localeCompare(b.start_time));
+      .sort((a, b) => {
+        const startDiff = a.start_time.localeCompare(b.start_time);
+        if (startDiff !== 0) return startDiff;
+
+        const paxDiff = (b.pax || 1) - (a.pax || 1);
+        if (paxDiff !== 0) return paxDiff;
+
+        const durationDiff = getDurationSlots(productMap[b.product_id]) - getDurationSlots(productMap[a.product_id]);
+        if (durationDiff !== 0) return durationDiff;
+
+        return a.id - b.id;
+      });
 
     for (const bk of sorted) {
       const slotIndex = slots.findIndex((s) => s === formatTime(bk.start_time));
       if (slotIndex < 0) continue;
 
       const product = productMap[bk.product_id];
-      const durationSlots = Math.ceil((product?.hours || 1) * 2);
+      const durationSlots = getDurationSlots(product);
+      const colSpan = Math.min(Math.max(bk.pax || 1, 1), columns);
 
-      let col = -1;
-      for (let c = 0; c < columns; c++) {
-        if (colEndSlot[c] <= slotIndex) {
-          col = c;
+      let colStart = -1;
+      for (let c = 0; c <= columns - colSpan; c++) {
+        let canPlace = true;
+        for (let offset = 0; offset < colSpan; offset++) {
+          if (colEndSlot[c + offset] > slotIndex) {
+            canPlace = false;
+            break;
+          }
+        }
+        if (canPlace) {
+          colStart = c;
           break;
         }
       }
-      if (col < 0) col = 0; // overflow, stack
+      if (colStart < 0) colStart = 0;
 
-      colEndSlot[col] = slotIndex + durationSlots;
-      layout.push({ booking: bk, col, slotIndex });
+      for (let offset = 0; offset < colSpan; offset++) {
+        colEndSlot[colStart + offset] = slotIndex + durationSlots;
+      }
+      layout.push({ booking: bk, colStart, colSpan, slotIndex, durationSlots });
     }
     return layout;
   }, [bookings, slots, columns, productMap, service.id]);
@@ -61,14 +85,14 @@ export default function DayCalendar({ service, bookings, products, blockedTimes,
   const occupiedMap = useMemo(() => {
     const map = new Map<string, Booking>();
     for (const l of bookingLayout) {
-      const product = productMap[l.booking.product_id];
-      const durationSlots = Math.ceil((product?.hours || 1) * 2);
-      for (let s = 0; s < durationSlots; s++) {
-        map.set(`${l.slotIndex + s}-${l.col}`, l.booking);
+      for (let s = 0; s < l.durationSlots; s++) {
+        for (let c = 0; c < l.colSpan; c++) {
+          map.set(`${l.slotIndex + s}-${l.colStart + c}`, l.booking);
+        }
       }
     }
     return map;
-  }, [bookingLayout, productMap]);
+  }, [bookingLayout]);
 
   // Map blocked times to slots
   const blockedLayout = useMemo(() => {
@@ -192,11 +216,11 @@ export default function DayCalendar({ service, bookings, products, blockedTimes,
   };
 
   return (
-    <div ref={containerRef} style={{ overflow: 'auto', flex: 1 }}>
+    <div ref={containerRef} style={{ overflow: 'auto', flex: 1, WebkitOverflowScrolling: 'touch' }}>
       <div
         className="day-calendar"
         style={{
-          gridTemplateColumns: `44px repeat(${columns}, 1fr)`,
+          gridTemplateColumns: `${TIME_LABEL_WIDTH}px repeat(${columns}, ${COLUMN_WIDTH}px)`,
           position: 'relative',
         }}
       >
@@ -206,30 +230,37 @@ export default function DayCalendar({ service, bookings, products, blockedTimes,
               {time}
             </div>
             {Array.from({ length: columns }, (_, ci) => {
-              const layout = bookingLayout.find((l) => l.slotIndex === si && l.col === ci);
               const isBlocked = blockedSlotSet.has(si);
 
               return (
                 <div
                   key={ci}
                   className={`slot-cell${isBlocked ? ' slot-blocked' : ''}`}
-                  style={{ gridRow: si + 1, gridColumn: ci + 2, ...(layout ? { zIndex: 1 } : {}) }}
+                  style={{ gridRow: si + 1, gridColumn: ci + 2 }}
                   onClick={() => handleCellClick(si, ci, time)}
                   onPointerDown={() => onPointerDown(si, time)}
                   onPointerUp={onPointerUp}
                   onPointerLeave={onPointerUp}
-                >
-                  {layout && (
-                    <BookingCell
-                      booking={layout.booking}
-                      product={productMap[layout.booking.product_id]}
-                      slotHeight={SLOT_HEIGHT}
-                      onClick={(b) => navigate(`/bookings/${b.id}`)}
-                    />
-                  )}
-                </div>
+                />
               );
             })}
+          </div>
+        ))}
+
+        {bookingLayout.map((layout) => (
+          <div
+            key={layout.booking.id}
+            className="booking-span"
+            style={{
+              gridRow: `${layout.slotIndex + 1} / span ${layout.durationSlots}`,
+              gridColumn: `${layout.colStart + 2} / span ${layout.colSpan}`,
+            }}
+          >
+            <BookingCell
+              booking={layout.booking}
+              product={productMap[layout.booking.product_id]}
+              onClick={(b) => navigate(`/bookings/${b.id}`)}
+            />
           </div>
         ))}
 

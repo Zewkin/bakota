@@ -5,14 +5,22 @@ import { SpinLoading } from 'antd-mobile';
 import { getBookings } from '@/api/bookings';
 import { useBookingsStore } from '@/stores/bookings';
 import { useServicesStore } from '@/stores/services';
-import type { Booking } from '@/types';
+import type { Booking, Product } from '@/types';
 import { BOOKING_STATUS } from '@/types';
+
+const SLOT_MINUTES = 30;
+
+const timeToMinutes = (time: string) => {
+  const [hours = '0', minutes = '0'] = time.slice(0, 5).split(':');
+  return Number(hours) * 60 + Number(minutes);
+};
+
+const getDurationSlots = (product?: Product) => Math.max(1, Math.ceil((product?.hours || 1) * 2));
 
 export default function MonthViewPage() {
   const navigate = useNavigate();
   const { setDate } = useBookingsStore();
-  const activeServiceId = useServicesStore((s) => s.activeServiceId);
-  const services = useServicesStore((s) => s.services);
+  const { activeServiceId, services, products, fetchServices, fetchProducts } = useServicesStore();
   const activeService = services.find((s) => s.id === activeServiceId);
 
   const [bookings, setBookingsData] = useState<Booking[]>([]);
@@ -23,6 +31,11 @@ export default function MonthViewPage() {
   const to = month.endOf('month').format('YYYY-MM-DD');
 
   useEffect(() => {
+    if (services.length === 0) fetchServices();
+    if (products.length === 0) fetchProducts();
+  }, []);
+
+  useEffect(() => {
     setLoading(true);
     const params: any = { from, to };
     if (activeServiceId) params.service_id = activeServiceId;
@@ -31,16 +44,37 @@ export default function MonthViewPage() {
       .finally(() => setLoading(false));
   }, [from, to, activeServiceId]);
 
-  // Count active bookings per day (exclude canceled)
+  const productMap = useMemo(() => Object.fromEntries(products.map((product) => [product.id, product])), [products]);
+
+  // Peak simultaneous load per day (exclude canceled)
   const dayMap = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const b of bookings) {
-      if (b.status !== BOOKING_STATUS.canceled) {
-        map[b.date_start] = (map[b.date_start] || 0) + 1;
-      }
+
+    const grouped: Record<string, Booking[]> = {};
+    for (const booking of bookings) {
+      if (booking.status === BOOKING_STATUS.canceled) continue;
+      grouped[booking.date_start] = grouped[booking.date_start] || [];
+      grouped[booking.date_start].push(booking);
     }
+
+    for (const [day, dayBookings] of Object.entries(grouped)) {
+      const slotLoad = new Map<number, number>();
+
+      for (const booking of dayBookings) {
+        const startSlot = Math.floor(timeToMinutes(booking.start_time) / SLOT_MINUTES);
+        const durationSlots = getDurationSlots(productMap[booking.product_id]);
+
+        for (let slot = 0; slot < durationSlots; slot++) {
+          const key = startSlot + slot;
+          slotLoad.set(key, (slotLoad.get(key) || 0) + booking.pax);
+        }
+      }
+
+      map[day] = Math.max(0, ...slotLoad.values());
+    }
+
     return map;
-  }, [bookings]);
+  }, [bookings, productMap]);
 
   const maxpax = activeService?.maxpax || 1;
 

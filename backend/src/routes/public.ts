@@ -8,6 +8,7 @@ export async function publicRoutes(fastify: FastifyInstance) {
     const booking = await db('bookings')
       .select(
         'bookings.id',
+        'bookings.pax',
         'bookings.soldprice',
         'bookings.discount',
         'bookings.date_start',
@@ -30,7 +31,7 @@ export async function publicRoutes(fastify: FastifyInstance) {
 
     const basePrice = Number(booking.product_price ?? 0);
     const discount = Number(booking.discount ?? 0);
-    const sum = Number(booking.soldprice ?? basePrice * (1 - discount / 100));
+    const sum = Number(booking.soldprice ?? basePrice * Number(booking.pax || 1) * (1 - discount / 100));
 
     const template = loadTemplate(booking.service_id, booking.template_html);
     const html = renderTemplate(template, {
