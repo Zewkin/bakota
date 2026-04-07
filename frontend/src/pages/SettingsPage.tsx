@@ -1,0 +1,399 @@
+import { useState, useEffect } from 'react';
+import { Tabs, List, Button, Form, Input, Popup, Toast, Switch, Selector, Stepper, SwipeAction, Dialog } from 'antd-mobile';
+import { getUsers, createUser, updateUser, toggleUserActive } from '@/api/users';
+import { getServices, createService, updateService, deleteService } from '@/api/services';
+import { getProducts, createProduct, updateProduct, deleteProduct } from '@/api/products';
+import { getCommissions, upsertCommission, deleteCommission } from '@/api/commissions';
+import { PRODUCT_TYPE_LABELS } from '@/types';
+import type { User, Service, Product, Commission } from '@/types';
+import { formatTime } from '@/utils/format';
+
+type Tab = 'users' | 'services' | 'products' | 'commissions';
+
+export default function SettingsPage() {
+  const [tab, setTab] = useState<Tab>('users');
+  const [users, setUsers] = useState<User[]>([]);
+  const [services, setServicesData] = useState<Service[]>([]);
+  const [products, setProductsData] = useState<Product[]>([]);
+  const [commissions, setCommissions] = useState<Commission[]>([]);
+  const [popup, setPopup] = useState<{ type: Tab; item?: any; initialForm?: Record<string, any> } | null>(null);
+  const [selectedProductServiceId, setSelectedProductServiceId] = useState<number | null>(null);
+
+  const load = () => {
+    getUsers().then((r) => setUsers(r.data)).catch(() => {});
+    getServices(true).then((r) => setServicesData(r.data)).catch(() => {});
+    getProducts().then((r) => setProductsData(r.data)).catch(() => {});
+    getCommissions().then((r) => setCommissions(r.data)).catch(() => {});
+  };
+
+  useEffect(load, []);
+
+  const handleToggleUser = async (u: User) => {
+    await toggleUserActive(u.id, u.active ? 0 : 1);
+    load();
+  };
+
+  const handleDeleteService = async (service: Service) => {
+    const ok = await Dialog.confirm({
+      content: `Видалити сервіс ${service.name}? Будуть видалені пов'язані продукти, бронювання, блокування часу та комісії.`,
+    });
+    if (!ok) return;
+    await deleteService(service.id);
+    Toast.show({ content: 'Видалено', icon: 'success' });
+    if (selectedProductServiceId === service.id) {
+      setSelectedProductServiceId(null);
+    }
+    load();
+  };
+
+  const handleDeleteProduct = async (product: Product) => {
+    const ok = await Dialog.confirm({
+      content: `Видалити продукт ${product.name}? Будуть видалені пов'язані бронювання та комісії.`,
+    });
+    if (!ok) return;
+    await deleteProduct(product.id);
+    Toast.show({ content: 'Видалено', icon: 'success' });
+    load();
+  };
+
+  const handleTabChange = (nextTab: string) => {
+    setTab(nextTab as Tab);
+    if (nextTab === 'products') {
+      setSelectedProductServiceId(null);
+    }
+  };
+
+  const selectedProductService = services.find((service) => service.id === selectedProductServiceId) || null;
+  const selectedServiceProducts = products.filter((product) => product.service_id === selectedProductServiceId);
+
+  return (
+    <div style={{ padding: 16 }}>
+      <h3 style={{ marginBottom: 12 }}>Налаштування</h3>
+      <Tabs activeKey={tab} onChange={handleTabChange}>
+        <Tabs.Tab title="Юзери" key="users" />
+        <Tabs.Tab title="Сервіси" key="services" />
+        <Tabs.Tab title="Продукти" key="products" />
+        <Tabs.Tab title="Комісії" key="commissions" />
+      </Tabs>
+
+      {tab === 'users' && (
+        <>
+          <List>
+            {users.map((u) => (
+              <List.Item
+                key={u.id}
+                extra={<Switch checked={!!u.active} onChange={() => handleToggleUser(u)} />}
+                onClick={() => setPopup({ type: 'users', item: u })}
+                description={['Admin', 'Manager', 'Instructor'][u.type]}
+              >
+                {u.login}
+              </List.Item>
+            ))}
+          </List>
+          <Button size="small" color="primary" onClick={() => setPopup({ type: 'users' })} style={{ margin: '8px 0' }}>
+            + Додати
+          </Button>
+        </>
+      )}
+
+      {tab === 'services' && (
+        <>
+          <List>
+            {services.map((s) => (
+              <SwipeAction
+                key={s.id}
+                rightActions={[{
+                  key: 'delete',
+                  text: 'Видалити',
+                  color: 'danger',
+                  onClick: () => handleDeleteService(s),
+                }]}
+              >
+                <List.Item
+                  onClick={() => setPopup({ type: 'services', item: s })}
+                  description={`${formatTime(s.start_time)}–${formatTime(s.end_time)}, макс: ${s.maxpax}`}
+                  extra={
+                    <span style={{ width: 16, height: 16, borderRadius: '50%', background: s.color || '#ccc', display: 'inline-block' }} />
+                  }
+                >
+                  {s.name}
+                </List.Item>
+              </SwipeAction>
+            ))}
+          </List>
+          <Button size="small" color="primary" onClick={() => setPopup({ type: 'services' })} style={{ margin: '8px 0' }}>
+            + Додати
+          </Button>
+        </>
+      )}
+
+      {tab === 'products' && (
+        <>
+          {selectedProductService ? (
+            <>
+              <div style={{ display: 'flex', gap: 8, margin: '8px 0' }}>
+                <Button size="small" onClick={() => setSelectedProductServiceId(null)}>
+                  Назад
+                </Button>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 6px 4px', fontWeight: 600 }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: selectedProductService.color || '#ccc', display: 'inline-block' }} />
+                {selectedProductService.name}
+              </div>
+              {selectedServiceProducts.length > 0 ? (
+                <List>
+                  {selectedServiceProducts.map((p) => (
+                    <SwipeAction
+                      key={p.id}
+                      rightActions={[{
+                        key: 'delete',
+                        text: 'Видалити',
+                        color: 'danger',
+                        onClick: () => handleDeleteProduct(p),
+                      }]}
+                    >
+                      <List.Item
+                        onClick={() => setPopup({ type: 'products', item: p })}
+                        description={`${PRODUCT_TYPE_LABELS[p.type] || p.type} | ${p.hours}г | ${p.price} грн`}
+                        extra={
+                          <span style={{ width: 16, height: 16, borderRadius: 4, background: p.booking_color || '#ccc', display: 'inline-block' }} />
+                        }
+                      >
+                        {p.name}
+                      </List.Item>
+                    </SwipeAction>
+                  ))}
+                </List>
+              ) : (
+                <div style={{ padding: '0 4px 6px', fontSize: 13, color: '#999' }}>
+                  Немає продуктів
+                </div>
+              )}
+              <Button
+                size="small"
+                color="primary"
+                onClick={() => setPopup({ type: 'products', initialForm: { service_id: selectedProductService.id } })}
+                style={{ margin: '8px 0' }}
+              >
+                + Додати
+              </Button>
+            </>
+          ) : (
+            <List>
+              {services.map((service) => {
+                const count = products.filter((product) => product.service_id === service.id).length;
+                return (
+                  <List.Item
+                    key={service.id}
+                    onClick={() => setSelectedProductServiceId(service.id)}
+                    description={`${count} продукт(ів)`}
+                    extra={
+                      <span style={{ width: 16, height: 16, borderRadius: '50%', background: service.color || '#ccc', display: 'inline-block' }} />
+                    }
+                  >
+                    {service.name}
+                  </List.Item>
+                );
+              })}
+            </List>
+          )}
+        </>
+      )}
+
+      {tab === 'commissions' && (
+        <>
+          <List>
+            {commissions.map((c) => {
+              const userName = users.find((u) => u.id === c.user_id)?.login || `#${c.user_id}`;
+              const productName = products.find((p) => p.id === c.product_id)?.name || `#${c.product_id}`;
+              return (
+                <SwipeAction
+                  key={c.id}
+                  rightActions={[{
+                    key: 'delete',
+                    text: 'Видалити',
+                    color: 'danger',
+                    onClick: async () => {
+                      const ok = await Dialog.confirm({ content: `Видалити комісію ${userName} — ${productName}?` });
+                      if (ok) {
+                        await deleteCommission(c.id);
+                        Toast.show({ content: 'Видалено', icon: 'success' });
+                        load();
+                      }
+                    },
+                  }]}
+                >
+                  <List.Item
+                    description={productName}
+                    onClick={() => setPopup({ type: 'commissions', item: c })}
+                  >
+                    {userName}: {c.commission}%
+                  </List.Item>
+                </SwipeAction>
+              );
+            })}
+          </List>
+          <Button size="small" color="primary" onClick={() => setPopup({ type: 'commissions' })} style={{ margin: '8px 0' }}>
+            + Додати
+          </Button>
+        </>
+      )}
+
+      {popup && (
+        <SettingsPopup
+          type={popup.type}
+          item={popup.item}
+          initialForm={popup.initialForm}
+          services={services}
+          users={users}
+          products={products}
+          onClose={() => { setPopup(null); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function SettingsPopup({ type, item, initialForm, services, users, products, onClose }: {
+  type: Tab;
+  item?: any;
+  initialForm?: Record<string, any>;
+  services: Service[];
+  users: User[];
+  products: Product[];
+  onClose: () => void;
+}) {
+  const isEdit = !!item;
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState<Record<string, any>>(
+    item || (type === 'services'
+      ? { maxpax: 1, start_time: '08:00', end_time: '20:00', active: 1, ...(initialForm || {}) }
+      : (initialForm || {}))
+  );
+
+  const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSave = async () => {
+    if (type === 'services') {
+      if (!form.name?.trim()) {
+        Toast.show({ content: 'Вкажіть назву сервісу', icon: 'fail' });
+        return;
+      }
+      if (!form.start_time?.trim()) {
+        Toast.show({ content: 'Вкажіть час початку', icon: 'fail' });
+        return;
+      }
+      if (!form.end_time?.trim()) {
+        Toast.show({ content: 'Вкажіть час завершення', icon: 'fail' });
+        return;
+      }
+    }
+
+    if (type === 'products') {
+      if (!form.service_id) {
+        Toast.show({ content: 'Оберіть сервіс', icon: 'fail' });
+        return;
+      }
+      if (form.type === undefined) {
+        Toast.show({ content: 'Оберіть тип продукту', icon: 'fail' });
+        return;
+      }
+    }
+
+    setLoading(true);
+    try {
+      if (type === 'users') {
+        if (isEdit) {
+          await updateUser(item.id, form);
+        } else {
+          await createUser(form as any);
+        }
+      } else if (type === 'services') {
+        if (isEdit) {
+          await updateService(item.id, form);
+        } else {
+          await createService(form as any);
+        }
+      } else if (type === 'products') {
+        if (isEdit) {
+          await updateProduct(item.id, form);
+        } else {
+          await createProduct(form as any);
+        }
+      } else if (type === 'commissions') {
+        await upsertCommission(form as any);
+      }
+      Toast.show({ content: 'Збережено', icon: 'success' });
+      onClose();
+    } catch (err: any) {
+      Toast.show({ content: err.response?.data?.message || 'Помилка', icon: 'fail' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Popup visible onMaskClick={onClose} bodyStyle={{ borderTopLeftRadius: 12, borderTopRightRadius: 12, maxHeight: '80vh', overflow: 'auto' }}>
+      <div style={{ padding: 16 }}>
+        <h4 style={{ marginBottom: 12 }}>{isEdit ? 'Редагувати' : 'Додати'}</h4>
+        <Form layout="horizontal">
+          {type === 'users' && (
+            <>
+              <Form.Item label="Логін"><Input value={form.login || ''} onChange={(v) => set('login', v)} /></Form.Item>
+              <Form.Item label="Пароль"><Input type="password" value={form.password || ''} onChange={(v) => set('password', v)} placeholder={isEdit ? 'Залиште порожнім' : ''} /></Form.Item>
+              <Form.Item label="Роль">
+                <Selector options={[{ label: 'Admin', value: 0 }, { label: 'Manager', value: 1 }, { label: 'Instructor', value: 2 }]} value={form.type !== undefined ? [form.type] : []} onChange={(v) => set('type', v[0])} />
+              </Form.Item>
+              <Form.Item label="Сервіси">
+                <Selector
+                  multiple
+                  options={services.map((s) => ({ label: s.name, value: s.id }))}
+                  value={form.service_ids || []}
+                  onChange={(v) => set('service_ids', v)}
+                />
+              </Form.Item>
+            </>
+          )}
+          {type === 'services' && (
+            <>
+              <Form.Item label="Назва"><Input value={form.name || ''} onChange={(v) => set('name', v)} /></Form.Item>
+              <Form.Item label="Макс. місць"><Stepper min={1} max={99} value={form.maxpax || 1} onChange={(v) => set('maxpax', v)} /></Form.Item>
+              <Form.Item label="Початок"><Input value={formatTime(form.start_time)} onChange={(v) => set('start_time', formatTime(v))} placeholder="08:00" /></Form.Item>
+              <Form.Item label="Кінець"><Input value={formatTime(form.end_time)} onChange={(v) => set('end_time', formatTime(v))} placeholder="20:00" /></Form.Item>
+              <Form.Item label="Колір"><Input value={form.color || ''} onChange={(v) => set('color', v)} placeholder="#ff5722" /></Form.Item>
+              <Form.Item label="Іконка"><Input value={form.icon || ''} onChange={(v) => set('icon', v)} placeholder="🚣" /></Form.Item>
+            </>
+          )}
+          {type === 'products' && (
+            <>
+              <Form.Item label="Назва"><Input value={form.name || ''} onChange={(v) => set('name', v)} /></Form.Item>
+              <Form.Item label="Сервіс">
+                <Selector options={services.map((s) => ({ label: s.name, value: s.id }))} value={form.service_id ? [form.service_id] : []} onChange={(v) => set('service_id', v[0])} />
+              </Form.Item>
+              <Form.Item label="Тип">
+                <Selector options={[{ label: 'Оренда', value: 1 }, { label: 'Тур', value: 2 }, { label: 'Інше', value: 3 }]} value={form.type !== undefined ? [form.type] : []} onChange={(v) => set('type', v[0])} />
+              </Form.Item>
+              <Form.Item label="Години"><Input type="number" value={String(form.hours || '')} onChange={(v) => set('hours', Number(v))} /></Form.Item>
+              <Form.Item label="Ціна, грн"><Input type="number" value={String(form.price || '')} onChange={(v) => set('price', Number(v))} /></Form.Item>
+              <Form.Item label="Колір"><Input value={form.booking_color || ''} onChange={(v) => set('booking_color', v)} placeholder="#4caf50" /></Form.Item>
+            </>
+          )}
+          {type === 'commissions' && (
+            <>
+              <Form.Item label="Юзер">
+                <Selector options={users.map((u) => ({ label: u.login, value: u.id }))} value={form.user_id ? [form.user_id] : []} onChange={(v) => set('user_id', v[0])} />
+              </Form.Item>
+              <Form.Item label="Продукт">
+                <Selector options={products.map((p) => ({ label: p.name, value: p.id }))} value={form.product_id ? [form.product_id] : []} onChange={(v) => set('product_id', v[0])} />
+              </Form.Item>
+              <Form.Item label="Комісія %"><Stepper min={0} max={100} value={form.commission || 0} onChange={(v) => set('commission', v)} /></Form.Item>
+            </>
+          )}
+        </Form>
+        <Button block color="primary" loading={loading} onClick={handleSave} style={{ marginTop: 12 }}>
+          Зберегти
+        </Button>
+      </div>
+    </Popup>
+  );
+}

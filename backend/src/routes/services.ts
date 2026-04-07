@@ -1,0 +1,119 @@
+import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { db } from '../db';
+import { ROLE } from '../utils/roles';
+
+const nullableTextField = z.string().nullable().optional();
+
+const serviceSchema = z.object({
+  name: z.string().min(1),
+  maxpax: z.number().int().nonnegative().default(0),
+  start_time: z.string().min(1),
+  end_time: z.string().min(1),
+  icon: nullableTextField,
+  color: z.string().max(7).nullable().optional(),
+  template_html: nullableTextField,
+  active: z.number().int().min(0).max(1).default(1),
+  manager_ids: z.array(z.number().int()).default([])
+});
+
+const serviceUpdateSchema = serviceSchema.partial();
+
+export async function serviceRoutes(fastify: FastifyInstance) {
+  fastify.get('/services', { preHandler: fastify.authenticate }, async (request) => {
+    const includeInactive = (request.query as any).include_inactive === '1';
+    const userType = request.user.type;
+    const userId = request.user.id;
+
+    const query = db('services').select('services.*');
+    if (!includeInactive) query.where({ 'services.active': 1 });
+
+    if (userType !== ROLE.admin) {
+      query
+        .join('user_services', 'services.id', 'user_services.service_id')
+        .where('user_services.user_id', userId);
+    }
+
+    return query;
+  });
+
+  fastify.get('/services/:id', { preHandler: fastify.authenticate }, async (request, reply) => {
+    const id = Number((request.params as any).id);
+    const service = await db('services').where({ id }).first();
+    if (!service) {
+      return reply.code(404).send({ message: 'Service not found' });
+    }
+    const managerIds = await db('user_services').where({ service_id: id }).pluck('user_id');
+    return { ...service, manager_ids: managerIds };
+  });
+
+  fastify.post('/services', { preHandler: fastify.authorize([ROLE.admin]) }, async (request, reply) => {
+    const body = serviceSchema.parse(request.body);
+    const [id] = await db('services').insert({
+      name: body.name,
+      maxpax: body.maxpax,
+      start_time: body.start_time,
+      end_time: body.end_time,
+      icon: body.icon || null,
+      color: body.color || null,
+      template_html: body.template_html || null,
+      active: body.active
+    });
+
+    if (body.manager_ids.length > 0) {
+      await db('user_services').insert(body.manager_ids.map((userId) => ({
+        user_id: userId,
+        service_id: id
+      })));
+    }
+
+    reply.code(201).send({ id });
+  });
+
+  fastify.put('/services/:id', { preHandler: fastify.authorize([ROLE.admin]) }, async (request, reply) => {
+    const id = Number((request.params as any).id);
+    const body = serviceUpdateSchema.parse(request.body);
+
+    const patch: Record<string, any> = {};
+    if (body.name !== undefined) patch.name = body.name;
+    if (body.maxpax !== undefined) patch.maxpax = body.maxpax;
+    if (body.start_time !== undefined) patch.start_time = body.start_time;
+    if (body.end_time !== undefined) patch.end_time = body.end_time;
+    if (body.icon !== undefined) patch.icon = body.icon || null;
+    if (body.color !== undefined) patch.color = body.color || null;
+    if (body.template_html !== undefined) patch.template_html = body.template_html || null;
+    if (body.active !== undefined) patch.active = body.active;
+
+    if (Object.keys(patch).length > 0) {
+      await db('services').where({ id }).update(patch);
+    }
+
+    if (body.manager_ids) {
+      await db('user_services').where({ service_id: id }).del();
+      if (body.manager_ids.length > 0) {
+        await db('user_services').insert(body.manager_ids.map((userId) => ({
+          user_id: userId,
+          service_id: id
+        })));
+      }
+    }
+
+    reply.send({ id });
+  });
+
+  fastify.delete('/services/:id', { preHandler: fastify.authorize([ROLE.admin]) }, async (request, reply) => {
+    const id = Number((request.params as any).id);
+    const deleted = await db('services').where({ id }).del();
+    if (!deleted) {
+      return reply.code(404).send({ message: 'Service not found' });
+    }
+    return { id };
+  });
+
+  fastify.patch('/services/:id/active', { preHandler: fastify.authorize([ROLE.admin]) }, async (request) => {
+    const id = Number((request.params as any).id);
+    const body = z.object({ active: z.number().int().min(0).max(1) }).parse(request.body);
+    await db('services').where({ id }).update({ active: body.active });
+    return { id };
+  });
+}

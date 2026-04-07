@@ -1,0 +1,76 @@
+import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { db } from '../db';
+import { ROLE } from '../utils/roles';
+
+const nullableColorField = z.string().max(7).nullable().optional();
+
+const productSchema = z.object({
+  name: z.string().min(1),
+  service_id: z.number().int(),
+  hours: z.number().nonnegative().default(0),
+  price: z.number().nonnegative().default(0),
+  type: z.number().int().min(1).max(3),
+  booking_color: nullableColorField,
+  active: z.number().int().min(0).max(1).default(1)
+});
+
+const productUpdateSchema = productSchema.partial();
+
+export async function productRoutes(fastify: FastifyInstance) {
+  fastify.get('/products', { preHandler: fastify.authenticate }, async (request) => {
+    const { service_id, type, active } = request.query as any;
+    const query = db('products').select('*');
+    if (service_id) query.where({ service_id: Number(service_id) });
+    if (type) query.where({ type: Number(type) });
+    if (active !== undefined) query.where({ active: Number(active) });
+    return query;
+  });
+
+  fastify.get('/products/:id', { preHandler: fastify.authenticate }, async (request, reply) => {
+    const id = Number((request.params as any).id);
+    const product = await db('products').where({ id }).first();
+    if (!product) {
+      return reply.code(404).send({ message: 'Product not found' });
+    }
+    return product;
+  });
+
+  fastify.post('/products', { preHandler: fastify.authorize([ROLE.admin]) }, async (request, reply) => {
+    const parsed = productSchema.safeParse(request.body);
+    if (!parsed.success) {
+      const typeIssue = parsed.error.issues.find((issue) => issue.path[0] === 'type');
+      return reply.code(400).send({ message: typeIssue ? 'Оберіть тип продукту' : parsed.error.issues[0]?.message || 'Invalid product' });
+    }
+    const body = parsed.data;
+    const [id] = await db('products').insert(body);
+    reply.code(201).send({ id });
+  });
+
+  fastify.put('/products/:id', { preHandler: fastify.authorize([ROLE.admin]) }, async (request, reply) => {
+    const id = Number((request.params as any).id);
+    const parsed = productUpdateSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ message: parsed.error.issues[0]?.message || 'Invalid product' });
+    }
+    const body = parsed.data;
+    await db('products').where({ id }).update(body);
+    reply.send({ id });
+  });
+
+  fastify.delete('/products/:id', { preHandler: fastify.authorize([ROLE.admin]) }, async (request, reply) => {
+    const id = Number((request.params as any).id);
+    const deleted = await db('products').where({ id }).del();
+    if (!deleted) {
+      return reply.code(404).send({ message: 'Product not found' });
+    }
+    return { id };
+  });
+
+  fastify.patch('/products/:id/active', { preHandler: fastify.authorize([ROLE.admin]) }, async (request) => {
+    const id = Number((request.params as any).id);
+    const body = z.object({ active: z.number().int().min(0).max(1) }).parse(request.body);
+    await db('products').where({ id }).update({ active: body.active });
+    return { id };
+  });
+}
