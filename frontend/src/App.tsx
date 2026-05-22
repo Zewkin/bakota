@@ -51,7 +51,15 @@ export default function App() {
             element={<ManagerRoute><BookingFormPage /></ManagerRoute>}
           />
           <Route
+            path="/bookings/:id/edit"
+            element={<ManagerRoute><BookingFormPage /></ManagerRoute>}
+          />
+          <Route
             path="/clients"
+            element={<ManagerRoute><ClientsPage /></ManagerRoute>}
+          />
+          <Route
+            path="/clients/:id"
             element={<ManagerRoute><ClientsPage /></ManagerRoute>}
           />
           <Route

@@ -1,7 +1,7 @@
 export const ROLE = { admin: 0, manager: 1, instructor: 2 } as const;
 export type RoleType = (typeof ROLE)[keyof typeof ROLE];
 
-export const ALLOWED_DISCOUNTS = [0, 5, 10, 20, 50, 100] as const;
+export const ALLOWED_DISCOUNTS = [0, 5, 10, 20, 35, 50, 100] as const;
 
 export const BOOKING_STATUS = { booked: 1, canceled: 2, paid: 3 } as const;
 export type BookingStatusType = (typeof BOOKING_STATUS)[keyof typeof BOOKING_STATUS];

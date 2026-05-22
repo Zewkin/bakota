@@ -39,7 +39,11 @@ export default function BookingDetailPage() {
   useEffect(() => { load(); }, [id]);
 
   const handleCancel = async () => {
-    const confirmed = await Dialog.confirm({ content: 'Скасувати бронювання?' });
+    const confirmed = await Dialog.confirm({
+      content: 'Скасувати бронювання?',
+      confirmText: 'Скасувати',
+      cancelText: 'Назад',
+    });
     if (!confirmed || !booking) return;
     await setBookingStatus(booking.id, BOOKING_STATUS.canceled);
     Toast.show({ content: 'Скасовано', icon: 'success' });
@@ -49,7 +53,7 @@ export default function BookingDetailPage() {
   const handleClose = async (data: CloseBookingPayload) => {
     if (!booking) return;
     await closeBooking(booking.id, data);
-    Toast.show({ content: 'Закрито', icon: 'success' });
+    Toast.show({ content: 'Надано', icon: 'success' });
     setShowClose(false);
     load();
   };
@@ -77,7 +81,19 @@ export default function BookingDetailPage() {
       </div>
 
       <div style={{ fontSize: 14, lineHeight: 2 }}>
-        <div><b>Клієнт:</b> {booking.customer_name}</div>
+        <div>
+          <b>Клієнт:</b>{' '}
+          {canEdit ? (
+            <span
+              onClick={() => navigate(`/clients/${booking.client_id}`)}
+              style={{ color: '#1677ff', cursor: 'pointer' }}
+            >
+              {booking.customer_name}
+            </span>
+          ) : (
+            booking.customer_name
+          )}
+        </div>
         <div><b>Телефон:</b> <a href={`tel:${booking.customer_tel}`}>{booking.customer_tel}</a></div>
         <div><b>Сервіс:</b> {booking.service_name}</div>
         <div><b>Продукт:</b> {booking.product_name}</div>
@@ -101,11 +117,17 @@ export default function BookingDetailPage() {
       <Divider />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {canEdit && (
+          <Button block color="primary" fill="outline" onClick={() => navigate(`/bookings/${booking.id}/edit`)}>
+            Редагувати
+          </Button>
+        )}
+
         <Button block onClick={handleGetMessage}>SMS повідомлення</Button>
 
         {canEdit && isOpen && (
           <>
-            <Button block color="success" onClick={() => setShowClose(true)}>Закрити</Button>
+            <Button block color="success" onClick={() => setShowClose(true)}>Надано</Button>
             <Button block color="danger" onClick={handleCancel}>Скасувати</Button>
           </>
         )}

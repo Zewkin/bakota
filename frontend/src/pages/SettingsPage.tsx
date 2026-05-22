@@ -10,6 +10,25 @@ import { formatTime } from '@/utils/format';
 
 type Tab = 'users' | 'services' | 'products' | 'commissions';
 
+const normalizeDecimalDisplay = (value: unknown) => {
+  if (value === undefined || value === null || value === '') return '';
+  const text = String(value).trim().replace(',', '.');
+  if (!/^\d+(\.\d+)?$/.test(text)) return text;
+  return text.replace(/\.0+$/, '').replace(/(\.\d*?[1-9])0+$/, '$1');
+};
+
+const normalizeProductForm = (values: Record<string, any>) => ({
+  ...values,
+  hours: normalizeDecimalDisplay(values.hours),
+  price: normalizeDecimalDisplay(values.price),
+});
+
+const parseDecimalField = (value: unknown) => {
+  if (value === undefined || value === null || value === '') return 0;
+  const number = Number(String(value).trim().replace(',', '.'));
+  return Number.isFinite(number) && number >= 0 ? number : null;
+};
+
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('users');
   const [users, setUsers] = useState<User[]>([]);
@@ -36,6 +55,8 @@ export default function SettingsPage() {
   const handleDeleteService = async (service: Service) => {
     const ok = await Dialog.confirm({
       content: `Видалити сервіс ${service.name}? Будуть видалені пов'язані продукти, бронювання, блокування часу та комісії.`,
+      confirmText: 'Видалити',
+      cancelText: 'Скасувати',
     });
     if (!ok) return;
     await deleteService(service.id);
@@ -49,6 +70,8 @@ export default function SettingsPage() {
   const handleDeleteProduct = async (product: Product) => {
     const ok = await Dialog.confirm({
       content: `Видалити продукт ${product.name}? Будуть видалені пов'язані бронювання та комісії.`,
+      confirmText: 'Видалити',
+      cancelText: 'Скасувати',
     });
     if (!ok) return;
     await deleteProduct(product.id);
@@ -214,7 +237,11 @@ export default function SettingsPage() {
                     text: 'Видалити',
                     color: 'danger',
                     onClick: async () => {
-                      const ok = await Dialog.confirm({ content: `Видалити комісію ${userName} — ${productName}?` });
+                      const ok = await Dialog.confirm({
+                        content: `Видалити комісію ${userName} — ${productName}?`,
+                        confirmText: 'Видалити',
+                        cancelText: 'Скасувати',
+                      });
                       if (ok) {
                         await deleteCommission(c.id);
                         Toast.show({ content: 'Видалено', icon: 'success' });
@@ -266,9 +293,11 @@ function SettingsPopup({ type, item, initialForm, services, users, products, onC
   const isEdit = !!item;
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<Record<string, any>>(
-    item || (type === 'services'
-      ? { maxpax: 1, start_time: '08:00', end_time: '20:00', active: 1, ...(initialForm || {}) }
-      : (initialForm || {}))
+    type === 'products'
+      ? normalizeProductForm(item || (initialForm || {}))
+      : item || (type === 'services'
+        ? { maxpax: 1, start_time: '08:00', end_time: '20:00', active: 1, ...(initialForm || {}) }
+        : (initialForm || {}))
   );
 
   const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
@@ -298,6 +327,14 @@ function SettingsPopup({ type, item, initialForm, services, users, products, onC
         Toast.show({ content: 'Оберіть тип продукту', icon: 'fail' });
         return;
       }
+      if (parseDecimalField(form.hours) === null) {
+        Toast.show({ content: 'Вкажіть години коректно', icon: 'fail' });
+        return;
+      }
+      if (parseDecimalField(form.price) === null) {
+        Toast.show({ content: 'Вкажіть ціну коректно', icon: 'fail' });
+        return;
+      }
     }
 
     setLoading(true);
@@ -315,10 +352,17 @@ function SettingsPopup({ type, item, initialForm, services, users, products, onC
           await createService(form as any);
         }
       } else if (type === 'products') {
+        const hours = parseDecimalField(form.hours) ?? 0;
+        const price = parseDecimalField(form.price) ?? 0;
+        const productForm = {
+          ...form,
+          hours,
+          price,
+        };
         if (isEdit) {
-          await updateProduct(item.id, form);
+          await updateProduct(item.id, productForm);
         } else {
-          await createProduct(form as any);
+          await createProduct(productForm as any);
         }
       } else if (type === 'commissions') {
         await upsertCommission(form as any);
@@ -373,8 +417,8 @@ function SettingsPopup({ type, item, initialForm, services, users, products, onC
               <Form.Item label="Тип">
                 <Selector options={[{ label: 'Оренда', value: 1 }, { label: 'Тур', value: 2 }, { label: 'Інше', value: 3 }]} value={form.type !== undefined ? [form.type] : []} onChange={(v) => set('type', v[0])} />
               </Form.Item>
-              <Form.Item label="Години"><Input type="number" value={String(form.hours || '')} onChange={(v) => set('hours', Number(v))} /></Form.Item>
-              <Form.Item label="Ціна, грн"><Input type="number" value={String(form.price || '')} onChange={(v) => set('price', Number(v))} /></Form.Item>
+              <Form.Item label="Години"><Input type="text" inputMode="decimal" value={String(form.hours ?? '')} onChange={(v) => set('hours', v.replace(',', '.'))} /></Form.Item>
+              <Form.Item label="Ціна, грн"><Input type="text" inputMode="decimal" value={String(form.price ?? '')} onChange={(v) => set('price', v.replace(',', '.'))} /></Form.Item>
               <Form.Item label="Колір"><Input value={form.booking_color || ''} onChange={(v) => set('booking_color', v)} placeholder="#4caf50" /></Form.Item>
             </>
           )}

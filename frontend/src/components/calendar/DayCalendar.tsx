@@ -247,6 +247,14 @@ export default function DayCalendar({ service, bookings, products, blockedTimes,
           </div>
         ))}
 
+        {slots.map((time, si) => (
+          <div
+            key={`divider-${time}`}
+            className={`slot-divider${time.endsWith(':30') ? ' slot-divider-half' : ''}`}
+            style={{ gridRow: si + 1, gridColumn: '1 / -1' }}
+          />
+        ))}
+
         {bookingLayout.map((layout) => (
           <div
             key={layout.booking.id}

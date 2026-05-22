@@ -35,7 +35,7 @@ export default function CloseBookingForm({ visible, onClose, onSubmit, currentDi
   return (
     <Popup visible={visible} onMaskClick={onClose} bodyStyle={{ borderTopLeftRadius: 12, borderTopRightRadius: 12 }}>
       <div style={{ padding: 16 }}>
-        <h4 style={{ marginBottom: 12 }}>Закрити бронювання</h4>
+        <h4 style={{ marginBottom: 12 }}>Надано</h4>
         <Form layout="horizontal">
           <Form.Item label="Інструктор">
             <Input value={instructor} onChange={setInstructor} placeholder="Ім'я інструктора" />
@@ -62,7 +62,7 @@ export default function CloseBookingForm({ visible, onClose, onSubmit, currentDi
           </Form.Item>
         </Form>
         <Button block color="primary" loading={loading} onClick={handleSubmit} style={{ marginTop: 12 }}>
-          Підтвердити
+          Зберегти
         </Button>
       </div>
     </Popup>

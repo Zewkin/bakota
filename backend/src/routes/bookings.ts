@@ -12,14 +12,14 @@ const customerSchema = z.object({
   group_flag: z.number().int().min(0).max(1).default(0)
 });
 
-const ALLOWED_DISCOUNTS = [0, 5, 10, 20, 50, 100] as const;
+const ALLOWED_DISCOUNTS = [0, 5, 10, 20, 35, 50, 100] as const;
 const BOOKING_STATUS_CANCELED = 2;
 const SLOT_MINUTES = 30;
 
 const bookingSchema = z.object({
   service_id: z.number().int(),
   avans: z.number().nonnegative().default(0),
-  discount: z.number().int().refine((v) => ALLOWED_DISCOUNTS.includes(v as any), { message: 'Discount must be one of: 0, 5, 10, 20, 50, 100' }).default(0),
+  discount: z.number().int().refine((v) => ALLOWED_DISCOUNTS.includes(v as any), { message: 'Discount must be one of: 0, 5, 10, 20, 35, 50, 100' }).default(0),
   date_start: z.string().min(1),
   start_time: z.string().min(1),
   product_id: z.number().int(),
@@ -34,7 +34,7 @@ const closeSchema = z.object({
   soldprice: z.number().nonnegative().optional(),
   soldprice_type: z.number().int().min(0).max(1),
   instructor: z.string().min(1),
-  discount: z.number().int().refine((v) => ALLOWED_DISCOUNTS.includes(v as any), { message: 'Discount must be one of: 0, 5, 10, 20, 50, 100' }).optional()
+  discount: z.number().int().refine((v) => ALLOWED_DISCOUNTS.includes(v as any), { message: 'Discount must be one of: 0, 5, 10, 20, 35, 50, 100' }).optional()
 });
 
 const statusSchema = z.object({
@@ -340,10 +340,6 @@ export async function bookingRoutes(fastify: FastifyInstance) {
       return reply.code(403).send({ message: 'No access to this booking' });
     }
 
-    if (booking.status === 3 && request.user.type !== ROLE.admin) {
-      return reply.code(403).send({ message: 'Booking is closed' });
-    }
-
     const validationError = await validateBookingRequest(mergedBooking, {
       excludeBookingId: id,
       enforceAvailability: Number(mergedBooking.status) !== BOOKING_STATUS_CANCELED,
@@ -435,7 +431,7 @@ export async function bookingRoutes(fastify: FastifyInstance) {
     }
 
     const url = `${config.publicBookingBaseUrl}/${booking.id}`;
-    const text = `${booking.customer_name},\nДеталі вашого бронювання:\n${url}.\nДякуємо за замовлення`;
+    const text = `${booking.customer_name},\nОсь деталі вашого бронювання:\n${url}\nДякуємо за замовлення і до зустрічі на Бакоті!`;
     return { message: text };
   });
 }
