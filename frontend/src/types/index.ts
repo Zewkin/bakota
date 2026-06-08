@@ -9,7 +9,7 @@ export type BookingStatusType = (typeof BOOKING_STATUS)[keyof typeof BOOKING_STA
 export const STATUS_LABELS: Record<number, string> = {
   1: 'Заброньовано',
   2: 'Скасовано',
-  3: 'Оплачено',
+  3: 'Надано',
 };
 
 export const CANAL_LABELS: Record<number, string> = {
@@ -81,10 +81,12 @@ export interface Booking {
   discount?: number;
   soldprice?: number | null;
   soldprice_type?: number | null;
+  product_price?: number;
   canal?: number | null;
   instructor?: string | null;
   comments: string | null;
   manager_id: number;
+  manager_name?: string | null;
   status: number;
   closed_by?: number | null;
   is_read?: boolean;

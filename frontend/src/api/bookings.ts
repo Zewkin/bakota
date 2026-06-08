@@ -28,6 +28,7 @@ export interface CreateBookingPayload {
     pax?: number;
     avans?: number;
     discount?: number;
+    soldprice?: number;
     canal?: number;
     comments?: string;
   };

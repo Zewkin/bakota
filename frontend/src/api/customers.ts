@@ -9,3 +9,6 @@ export const getCustomer = (id: number) =>
 
 export const updateCustomer = (id: number, data: Partial<Customer>) =>
   api.put<{ id: number }>(`/customers/${id}`, data);
+
+export const deleteCustomer = (id: number) =>
+  api.delete<{ id: number }>(`/customers/${id}`);

@@ -2,7 +2,6 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { db } from '../db';
 import { ROLE } from '../utils/roles';
-import { config } from '../config';
 
 const customerSchema = z.object({
   tel: z.string().min(3),
@@ -24,6 +23,7 @@ const bookingSchema = z.object({
   start_time: z.string().min(1),
   product_id: z.number().int(),
   pax: z.number().int().positive().default(1),
+  soldprice: z.number().nonnegative().optional(),
   comments: z.string().optional(),
   canal: z.number().int().min(1).max(5).optional()
 });
@@ -192,11 +192,14 @@ export async function bookingRoutes(fastify: FastifyInstance) {
         'customers.tel as customer_tel',
         'customers.name as customer_name',
         'products.name as product_name',
+        'products.price as product_price',
+        'managers.login as manager_name',
         'services.name as service_name'
       )
       .join('customers', 'customers.id', 'bookings.client_id')
       .join('products', 'products.id', 'bookings.product_id')
-      .join('services', 'services.id', 'bookings.service_id');
+      .join('services', 'services.id', 'bookings.service_id')
+      .leftJoin('users as managers', 'managers.id', 'bookings.manager_id');
 
     if (from) query.where('bookings.date_start', '>=', from);
     if (to) query.where('bookings.date_start', '<=', to);
@@ -248,11 +251,14 @@ export async function bookingRoutes(fastify: FastifyInstance) {
         'customers.tel as customer_tel',
         'customers.name as customer_name',
         'products.name as product_name',
+        'products.price as product_price',
+        'managers.login as manager_name',
         'services.name as service_name'
       )
       .join('customers', 'customers.id', 'bookings.client_id')
       .join('products', 'products.id', 'bookings.product_id')
       .join('services', 'services.id', 'bookings.service_id')
+      .leftJoin('users as managers', 'managers.id', 'bookings.manager_id')
       .where('bookings.id', id)
       .first();
 
@@ -312,6 +318,7 @@ export async function bookingRoutes(fastify: FastifyInstance) {
         start_time: body.booking.start_time,
         product_id: body.booking.product_id,
         pax: body.booking.pax,
+        soldprice: body.booking.soldprice ?? null,
         comments: body.booking.comments || null,
         manager_id: userId,
         status: 1,
@@ -394,7 +401,10 @@ export async function bookingRoutes(fastify: FastifyInstance) {
     const product = await db('products').where({ id: booking.product_id }).first();
     const discount = body.discount ?? booking.discount;
     const basePrice = Number(product?.price ?? 0);
-    const computedSold = basePrice * Number(booking.pax || 1) * (1 - discount / 100);
+    const storedSoldprice = booking.soldprice === null || booking.soldprice === undefined
+      ? null
+      : Number(booking.soldprice);
+    const computedSold = storedSoldprice ?? basePrice * Number(booking.pax || 1) * (1 - discount / 100);
 
     await db('bookings').where({ id }).update({
       status: 3,
@@ -421,17 +431,36 @@ export async function bookingRoutes(fastify: FastifyInstance) {
   fastify.get('/bookings/:id/message', { preHandler: fastify.authenticate }, async (request, reply) => {
     const id = Number((request.params as any).id);
     const booking = await db('bookings')
-      .select('bookings.id', 'customers.name as customer_name')
+      .select(
+        'bookings.id',
+        'bookings.service_id',
+        'bookings.pax',
+        'bookings.avans',
+        'bookings.discount',
+        'bookings.soldprice',
+        'customers.name as customer_name',
+        'products.name as product_name',
+        'products.price as product_price'
+      )
       .join('customers', 'customers.id', 'bookings.client_id')
+      .join('products', 'products.id', 'bookings.product_id')
       .where('bookings.id', id)
       .first();
 
     if (!booking) {
       return reply.code(404).send({ message: 'Booking not found' });
     }
+    const allowedServices = await getAccessibleServiceIds(request.user.id, request.user.type);
+    if (allowedServices && !(allowedServices as number[]).includes(booking.service_id)) {
+      return reply.code(403).send({ message: 'No access to this booking' });
+    }
 
-    const url = `${config.publicBookingBaseUrl}/${booking.id}`;
-    const text = `${booking.customer_name},\nОсь деталі вашого бронювання:\n${url}\nДякуємо за замовлення і до зустрічі на Бакоті!`;
+    const pax = Number(booking.pax || 1);
+    const discount = Number(booking.discount || 0);
+    const productTotal = Number(booking.product_price || 0) * pax;
+    const price = Number(booking.soldprice ?? productTotal * (1 - discount / 100));
+    const formatMoney = (value: number | string | null | undefined) => `${Number(value || 0).toFixed(0)} грн`;
+    const text = `${booking.customer_name},\nОсь деталі вашого бронювання:\n${booking.product_name} Pax к-сть ${pax}\nЦіна ${formatMoney(price)} / Аванс ${formatMoney(booking.avans)}\nДякуємо за замовлення і до зустрічі на Бакоті!`;
     return { message: text };
   });
 }

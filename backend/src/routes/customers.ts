@@ -46,4 +46,19 @@ export async function customerRoutes(fastify: FastifyInstance) {
     await db('customers').where({ id }).update(body);
     reply.send({ id });
   });
+
+  fastify.delete('/customers/:id', { preHandler: fastify.authorize([ROLE.admin]) }, async (request, reply) => {
+    const id = Number((request.params as any).id);
+    const customer = await db('customers').where({ id }).first('id');
+    if (!customer) {
+      return reply.code(404).send({ message: 'Customer not found' });
+    }
+
+    await db.transaction(async (trx) => {
+      await trx('bookings').where({ client_id: id }).del();
+      await trx('customers').where({ id }).del();
+    });
+
+    return { id };
+  });
 }

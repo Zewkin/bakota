@@ -5,7 +5,7 @@ import { useServicesStore } from '@/stores/services';
 import { createBooking, getBooking, updateBooking } from '@/api/bookings';
 import { getCustomer, getCustomers, updateCustomer } from '@/api/customers';
 import { ALLOWED_DISCOUNTS, CANAL_LABELS } from '@/types';
-import { generateTimeSlots } from '@/utils/format';
+import { formatPrice, generateTimeSlots } from '@/utils/format';
 import type { Customer } from '@/types';
 
 const CUSTOMER_SOURCE_OPTIONS = [
@@ -47,6 +47,8 @@ export default function BookingFormPage() {
   const [pax, setPax] = useState(1);
   const [avans, setAvans] = useState(0);
   const [discount, setDiscount] = useState(0);
+  const [soldpriceInput, setSoldpriceInput] = useState('');
+  const [priceManual, setPriceManual] = useState(false);
   const [canal, setCanal] = useState<number | undefined>(undefined);
   const [comments, setComments] = useState('');
 
@@ -76,6 +78,8 @@ export default function BookingFormPage() {
         setPax(Number(booking.pax || 1));
         setAvans(Number(booking.avans || 0));
         setDiscount(Number(booking.discount || 0));
+        setSoldpriceInput(booking.soldprice != null ? String(Number(booking.soldprice).toFixed(0)) : '');
+        setPriceManual(booking.soldprice != null);
         setCanal(booking.canal ?? undefined);
         setComments(booking.comments || '');
 
@@ -100,6 +104,14 @@ export default function BookingFormPage() {
     () => products.filter((product) => product.service_id === serviceId && (product.active || product.id === productId)),
     [products, serviceId, productId]
   );
+  const selectedProduct = useMemo(
+    () => products.find((product) => product.id === productId) || null,
+    [products, productId]
+  );
+  const calculatedPrice = useMemo(() => {
+    if (!selectedProduct) return 0;
+    return Number(selectedProduct.price || 0) * pax * (1 - discount / 100);
+  }, [selectedProduct, pax, discount]);
 
   const activeService = services.find((service) => service.id === serviceId);
   const timeSlots = useMemo(
@@ -113,6 +125,19 @@ export default function BookingFormPage() {
       setPax(maxPax);
     }
   }, [maxPax, pax]);
+
+  useEffect(() => {
+    if (!selectedProduct) {
+      if (!productId) {
+        setSoldpriceInput('');
+        setPriceManual(false);
+      }
+      return;
+    }
+    if (!priceManual) {
+      setSoldpriceInput(String(calculatedPrice.toFixed(0)));
+    }
+  }, [selectedProduct, productId, calculatedPrice, priceManual]);
 
   const searchCustomer = async () => {
     if (isEdit || tel.length < 3) return;
@@ -136,6 +161,11 @@ export default function BookingFormPage() {
       Toast.show({ content: 'Заповніть всі обов\'язкові поля', icon: 'fail' });
       return;
     }
+    const soldprice = soldpriceInput.trim() ? Number(soldpriceInput) : undefined;
+    if (soldprice !== undefined && (!Number.isFinite(soldprice) || soldprice < 0)) {
+      Toast.show({ content: 'Вкажіть ціну коректно', icon: 'fail' });
+      return;
+    }
 
     setLoading(true);
     try {
@@ -155,6 +185,7 @@ export default function BookingFormPage() {
         pax,
         avans,
         discount,
+        soldprice,
         canal,
         comments,
       };
@@ -234,7 +265,11 @@ export default function BookingFormPage() {
           <Picker
             columns={[services.map((service) => ({ label: service.name, value: service.id }))]}
             value={serviceId ? [serviceId] : []}
-            onConfirm={(value) => { setServiceId(value[0] as number); setProductId(null); }}
+            onConfirm={(value) => {
+              setServiceId(value[0] as number);
+              setProductId(null);
+              setPriceManual(false);
+            }}
           >
             {(_, actions) => (
               <span onClick={actions.open} style={{ cursor: 'pointer' }}>
@@ -247,7 +282,10 @@ export default function BookingFormPage() {
           <Picker
             columns={[serviceProducts.map((product) => ({ label: `${product.name} (${product.price} грн)`, value: product.id }))]}
             value={productId ? [productId] : []}
-            onConfirm={(value) => setProductId(value[0] as number)}
+            onConfirm={(value) => {
+              setProductId(value[0] as number);
+              setPriceManual(false);
+            }}
           >
             {(_, actions) => (
               <span onClick={actions.open} style={{ cursor: 'pointer' }}>
@@ -256,6 +294,11 @@ export default function BookingFormPage() {
             )}
           </Picker>
         </Form.Item>
+        {selectedProduct && (
+          <Form.Item label="Ціна продукту">
+            <span>{formatPrice(selectedProduct.price)} / pax</span>
+          </Form.Item>
+        )}
         <Form.Item label="Дата">
           <Input type="date" value={dateStart} onChange={setDateStart} />
         </Form.Item>
@@ -273,7 +316,15 @@ export default function BookingFormPage() {
           </Picker>
         </Form.Item>
         <Form.Item label="Кількість">
-          <Stepper min={1} max={maxPax} value={pax} onChange={setPax} />
+          <Stepper
+            min={1}
+            max={maxPax}
+            value={pax}
+            onChange={(value) => {
+              setPax(value);
+              setPriceManual(false);
+            }}
+          />
         </Form.Item>
         <Form.Item label="Аванс, грн">
           <Input type="number" value={String(avans)} onChange={(value) => setAvans(Number(value) || 0)} />
@@ -282,7 +333,21 @@ export default function BookingFormPage() {
           <Selector
             options={ALLOWED_DISCOUNTS.map((value) => ({ label: value === 0 ? 'Без знижки' : `${value}%`, value }))}
             value={[discount]}
-            onChange={(value) => setDiscount(value[0] ?? 0)}
+            onChange={(value) => {
+              setDiscount(value[0] ?? 0);
+              setPriceManual(false);
+            }}
+          />
+        </Form.Item>
+        <Form.Item label="Ціна">
+          <Input
+            type="number"
+            value={soldpriceInput}
+            onChange={(value) => {
+              setSoldpriceInput(value);
+              setPriceManual(true);
+            }}
+            placeholder="0"
           />
         </Form.Item>
         <Form.Item label="Канал">

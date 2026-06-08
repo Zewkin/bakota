@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Service, Product } from '@/types';
 import { getServices } from '@/api/services';
 import { getProducts } from '@/api/products';
+import { putKayaksBeforeSup } from '@/utils/services';
 
 interface ServicesState {
   services: Service[];
@@ -22,7 +23,7 @@ export const useServicesStore = create<ServicesState>((set) => ({
     set({ loading: true });
     try {
       const res = await getServices();
-      const services = res.data;
+      const services = putKayaksBeforeSup(res.data);
       set((s) => ({
         services,
         activeServiceId: s.activeServiceId ?? services[0]?.id ?? null,

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Button, Form, Input, List, Picker, Popup, SearchBar, Selector, SpinLoading, TextArea, Toast } from 'antd-mobile';
+import { Button, Dialog, Form, Input, List, Picker, Popup, SearchBar, Selector, SpinLoading, TextArea, Toast } from 'antd-mobile';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getCustomer, getCustomers, updateCustomer } from '@/api/customers';
+import { deleteCustomer, getCustomer, getCustomers, updateCustomer } from '@/api/customers';
 import { getBookings } from '@/api/bookings';
+import { useAuthStore } from '@/stores/auth';
+import { isAdmin } from '@/utils/roles';
 import type { Customer, Booking } from '@/types';
 
 const CUSTOMER_SOURCE_OPTIONS = [
@@ -12,9 +14,15 @@ const CUSTOMER_SOURCE_OPTIONS = [
   { label: 'Інше', value: 'Інше' },
 ];
 
+const formatClientBookingDate = (date: string) => {
+  const [year, month, day] = String(date || '').slice(0, 10).split('-');
+  return year && month && day ? `${year}-${day}-${month}` : date;
+};
+
 export default function ClientsPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
+  const user = useAuthStore((s) => s.user);
   const [search, setSearch] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
@@ -120,6 +128,26 @@ export default function ClientsPage() {
     }
   };
 
+  const handleDeleteCustomer = async () => {
+    if (!selectedCustomer) return;
+
+    const ok = await Dialog.confirm({
+      content: `Видалити клієнта ${selectedCustomer.name}? Будуть видалені всі бронювання цього клієнта.`,
+      confirmText: 'Видалити',
+      cancelText: 'Скасувати',
+    });
+    if (!ok) return;
+
+    try {
+      await deleteCustomer(selectedCustomer.id);
+      setCustomers((items) => items.filter((item) => item.id !== selectedCustomer.id));
+      Toast.show({ content: 'Клієнта видалено', icon: 'success' });
+      navigate('/clients', { replace: true });
+    } catch (err: any) {
+      Toast.show({ content: err.response?.data?.message || 'Не вдалося видалити', icon: 'fail' });
+    }
+  };
+
   if (id && !selectedCustomer) {
     return <div style={{ textAlign: 'center', padding: 24 }}><SpinLoading /></div>;
   }
@@ -147,6 +175,11 @@ export default function ClientsPage() {
             <Button block color="primary" fill="outline" onClick={openEditCustomer} style={{ marginTop: 12 }}>
               Редагувати клієнта
             </Button>
+            {user && isAdmin(user.type) && (
+              <Button block color="danger" fill="outline" onClick={handleDeleteCustomer} style={{ marginTop: 8 }}>
+                Видалити клієнта
+              </Button>
+            )}
 
             <h4 style={{ marginTop: 16, marginBottom: 8 }}>Бронювання ({customerBookings.length})</h4>
             <List>
@@ -154,10 +187,10 @@ export default function ClientsPage() {
                 <List.Item
                   key={booking.id}
                   onClick={() => navigate(`/bookings/${booking.id}`)}
-                  description={`${booking.service_name} — ${booking.product_name}`}
-                  extra={booking.date_start}
+                  description={formatClientBookingDate(booking.date_start)}
+                  extra={booking.product_name}
                 >
-                  #{booking.id} — {booking.customer_name}
+                  #{booking.id} - {booking.customer_name}
                 </List.Item>
               ))}
               {customerBookings.length === 0 && (

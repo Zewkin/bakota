@@ -7,6 +7,7 @@ import { getCommissions, upsertCommission, deleteCommission } from '@/api/commis
 import { PRODUCT_TYPE_LABELS } from '@/types';
 import type { User, Service, Product, Commission } from '@/types';
 import { formatTime } from '@/utils/format';
+import { putKayaksBeforeSup } from '@/utils/services';
 
 type Tab = 'users' | 'services' | 'products' | 'commissions';
 
@@ -40,7 +41,7 @@ export default function SettingsPage() {
 
   const load = () => {
     getUsers().then((r) => setUsers(r.data)).catch(() => {});
-    getServices(true).then((r) => setServicesData(r.data)).catch(() => {});
+    getServices(true).then((r) => setServicesData(putKayaksBeforeSup(r.data))).catch(() => {});
     getProducts().then((r) => setProductsData(r.data)).catch(() => {});
     getCommissions().then((r) => setCommissions(r.data)).catch(() => {});
   };

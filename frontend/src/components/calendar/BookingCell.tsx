@@ -34,7 +34,7 @@ export default function BookingCell({ booking, product, onClick }: Props) {
       onClick={(e) => { e.stopPropagation(); onClick(booking); }}
     >
       <div>{booking.customer_name}</div>
-      {booking.pax > 1 && <div>{booking.pax} ос.</div>}
+      {booking.pax > 1 && <div>{booking.pax} pax</div>}
     </div>
   );
 }

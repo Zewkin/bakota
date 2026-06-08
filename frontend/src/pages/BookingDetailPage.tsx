@@ -70,6 +70,11 @@ export default function BookingDetailPage() {
   const showFinancials = user && canSeeFinancials(user.type);
   const canEdit = user && canCreateBooking(user.type);
   const isOpen = booking.status === BOOKING_STATUS.booked;
+  const bookingSum = booking.soldprice != null
+    ? Number(booking.soldprice)
+    : booking.product_price !== undefined
+      ? Number(booking.product_price || 0) * Number(booking.pax || 1) * (1 - Number(booking.discount || 0) / 100)
+      : null;
 
   const statusColor = booking.status === 1 ? '#1677ff' : booking.status === 2 ? '#ff3141' : '#00b578';
 
@@ -99,7 +104,8 @@ export default function BookingDetailPage() {
         <div><b>Продукт:</b> {booking.product_name}</div>
         <div><b>Дата:</b> {formatDateFull(booking.date_start)}</div>
         <div><b>Час:</b> {formatTime(booking.start_time)}</div>
-        <div><b>Кількість:</b> {booking.pax} ос.</div>
+        <div><b>Кількість:</b> {booking.pax} pax</div>
+        <div><b>Створив:</b> {booking.manager_name || `#${booking.manager_id}`}</div>
         {booking.canal && <div><b>Канал:</b> {CANAL_LABELS[booking.canal] || booking.canal}</div>}
         {booking.comments && <div><b>Коментар:</b> {booking.comments}</div>}
         {booking.instructor && <div><b>Інструктор:</b> {booking.instructor}</div>}
@@ -107,9 +113,10 @@ export default function BookingDetailPage() {
         {showFinancials && (
           <>
             <Divider />
+            {booking.product_price !== undefined && <div><b>Ціна продукту:</b> {formatPrice(booking.product_price)} / pax</div>}
             {booking.avans !== undefined && <div><b>Аванс:</b> {formatPrice(booking.avans)}</div>}
             {booking.discount !== undefined && <div><b>Знижка:</b> {booking.discount}%</div>}
-            {booking.soldprice != null && <div><b>Сума:</b> {formatPrice(booking.soldprice)}</div>}
+            {bookingSum != null && <div><b>Сума:</b> {formatPrice(bookingSum)}</div>}
           </>
         )}
       </div>
@@ -139,6 +146,9 @@ export default function BookingDetailPage() {
           onClose={() => setShowClose(false)}
           onSubmit={handleClose}
           currentDiscount={booking.discount}
+          productPrice={booking.product_price}
+          pax={booking.pax}
+          currentSoldprice={booking.soldprice}
         />
       )}
 

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Popup, Form, Input, Button, Selector } from 'antd-mobile';
 import { ALLOWED_DISCOUNTS } from '@/types';
+import { formatPrice } from '@/utils/format';
 import type { CloseBookingPayload } from '@/api/bookings';
 
 interface Props {
@@ -8,14 +9,29 @@ interface Props {
   onClose: () => void;
   onSubmit: (data: CloseBookingPayload) => Promise<void>;
   currentDiscount?: number;
+  productPrice?: number;
+  pax?: number;
+  currentSoldprice?: number | null;
 }
 
-export default function CloseBookingForm({ visible, onClose, onSubmit, currentDiscount }: Props) {
+export default function CloseBookingForm({ visible, onClose, onSubmit, currentDiscount, productPrice, pax = 1, currentSoldprice }: Props) {
   const [instructor, setInstructor] = useState('');
   const [soldpriceType, setSoldpriceType] = useState(0);
-  const [soldprice, setSoldprice] = useState('');
   const [discount, setDiscount] = useState(currentDiscount ?? 0);
+  const [soldprice, setSoldprice] = useState(currentSoldprice != null ? Number(currentSoldprice).toFixed(0) : '');
+  const [priceManual, setPriceManual] = useState(currentSoldprice != null);
   const [loading, setLoading] = useState(false);
+
+  const calculatedSoldprice = useMemo(
+    () => Number(productPrice || 0) * pax * (1 - discount / 100),
+    [productPrice, pax, discount]
+  );
+
+  useEffect(() => {
+    if (!priceManual) {
+      setSoldprice(calculatedSoldprice.toFixed(0));
+    }
+  }, [calculatedSoldprice, priceManual]);
 
   const handleSubmit = async () => {
     if (!instructor) return;
@@ -50,14 +66,30 @@ export default function CloseBookingForm({ visible, onClose, onSubmit, currentDi
               onChange={(v) => setSoldpriceType(v[0] ?? 0)}
             />
           </Form.Item>
-          <Form.Item label="Сума (вручну)">
-            <Input type="number" value={soldprice} onChange={setSoldprice} placeholder="Авто-розрахунок" />
+          {productPrice !== undefined && (
+            <Form.Item label="Ціна продукту">
+              <span>{formatPrice(productPrice)} / pax</span>
+            </Form.Item>
+          )}
+          <Form.Item label="Сума">
+            <Input
+              type="number"
+              value={soldprice}
+              onChange={(value) => {
+                setSoldprice(value);
+                setPriceManual(true);
+              }}
+              placeholder="0"
+            />
           </Form.Item>
           <Form.Item label="Знижка">
             <Selector
               options={ALLOWED_DISCOUNTS.map((d) => ({ label: d === 0 ? '0%' : `${d}%`, value: d }))}
               value={[discount]}
-              onChange={(v) => setDiscount(v[0] ?? 0)}
+              onChange={(v) => {
+                setDiscount(v[0] ?? 0);
+                setPriceManual(false);
+              }}
             />
           </Form.Item>
         </Form>
