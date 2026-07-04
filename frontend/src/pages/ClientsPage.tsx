@@ -151,11 +151,9 @@ export default function ClientsPage() {
   if (selectedCustomer) {
     return (
       <div style={{ padding: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           <h3>{selectedCustomer.name}</h3>
-          <span style={{ cursor: 'pointer', color: '#1677ff' }} onClick={() => navigate('/clients')}>
-            Назад
-          </span>
+          <Button size="mini" fill="outline" onClick={() => navigate('/clients')}>Назад</Button>
         </div>
 
         {detailLoading ? (
