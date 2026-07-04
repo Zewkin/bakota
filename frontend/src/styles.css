@@ -23,7 +23,8 @@ body {
   gap: 0;
   border-top: 1px solid #eee;
   grid-auto-rows: 44px;
-  width: max-content;
+  width: 100%;
+  min-width: 0;
 }
 
 .time-slot {
@@ -42,6 +43,59 @@ body {
   border-left: 1px solid #f0f0f0;
   position: relative;
   cursor: pointer;
+  min-width: 0;
+}
+
+.slot-capacity {
+  border-left: 1px solid #f0f0f0;
+  padding: 6px 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 4px;
+  color: #8a8a8a;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.slot-capacity span {
+  display: block;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.slot-capacity-bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #eeeeee;
+}
+
+.slot-capacity-fill {
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: #00b578;
+}
+
+.slot-capacity-busy .slot-capacity-fill {
+  background: #ffbf3f;
+}
+
+.slot-capacity-full {
+  color: #d72d3a;
+  font-weight: 600;
+}
+
+.slot-capacity-full .slot-capacity-fill,
+.slot-capacity-blocked .slot-capacity-fill {
+  background: #ff3141;
+}
+
+.slot-capacity-blocked {
+  color: #999;
 }
 
 .slot-divider {
@@ -72,7 +126,7 @@ body {
   position: absolute;
   inset: 1px;
   border-radius: 4px;
-  padding: 2px 4px;
+  padding: 3px 5px;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -85,7 +139,27 @@ body {
 
 .booking-span {
   position: relative;
-  z-index: 1;
+  z-index: 4;
+  min-width: 0;
+}
+
+.booking-title,
+.booking-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.booking-title {
+  font-weight: 600;
+}
+
+.booking-meta {
+  display: flex;
+  min-width: 0;
+  gap: 5px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 10px;
 }
 
 .booking-cell.unread {
@@ -125,7 +199,7 @@ body {
   font-size: 11px;
   color: #999;
   cursor: pointer;
-  z-index: 2;
+  z-index: 5;
   border-radius: 2px;
 }
 

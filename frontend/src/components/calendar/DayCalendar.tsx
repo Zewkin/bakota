@@ -2,6 +2,7 @@ import { useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { Dialog, Toast } from 'antd-mobile';
+import { BOOKING_STATUS } from '@/types';
 import type { Booking, Service, Product, BlockedTime } from '@/types';
 import { generateTimeSlots, formatTime } from '@/utils/format';
 import { createBlockedTime, deleteBlockedTime } from '@/api/blocked-time';
@@ -18,81 +19,161 @@ interface Props {
 
 const SLOT_HEIGHT = 44;
 const TIME_LABEL_WIDTH = 48;
-const COLUMN_WIDTH = 84;
+const CAPACITY_WIDTH = 54;
 
 export default function DayCalendar({ service, bookings, products, blockedTimes, date }: Props) {
   const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const fetchBlockedTime = useBookingsStore((s) => s.fetchBlockedTime);
   const slots = useMemo(() => generateTimeSlots(service.start_time, service.end_time), [service]);
-  const columns = Math.max(service.maxpax, 1);
+  const capacity = Math.max(service.maxpax || 1, 1);
   const productMap = useMemo(() => Object.fromEntries(products.map((p) => [p.id, p])), [products]);
   const getDurationSlots = (product?: Product) => Math.max(1, Math.ceil((product?.hours || 1) * 2));
 
-  // Map bookings to contiguous column spans.
+  // Put overlapping bookings into compact visual lanes. Capacity is shown separately.
   const bookingLayout = useMemo(() => {
-    const layout: { booking: Booking; colStart: number; colSpan: number; slotIndex: number; durationSlots: number }[] = [];
-    const colEndSlot = new Array(columns).fill(0);
-
     const sorted = [...bookings]
       .filter((b) => b.service_id === service.id)
+      .map((booking) => {
+        const slotIndex = slots.findIndex((s) => s === formatTime(booking.start_time));
+        if (slotIndex < 0) return null;
+
+        return {
+          booking,
+          slotIndex,
+          durationSlots: getDurationSlots(productMap[booking.product_id]),
+        };
+      })
+      .filter((item): item is { booking: Booking; slotIndex: number; durationSlots: number } => Boolean(item))
       .sort((a, b) => {
-        const startDiff = a.start_time.localeCompare(b.start_time);
+        const startDiff = a.slotIndex - b.slotIndex;
         if (startDiff !== 0) return startDiff;
 
-        const paxDiff = (b.pax || 1) - (a.pax || 1);
-        if (paxDiff !== 0) return paxDiff;
-
-        const durationDiff = getDurationSlots(productMap[b.product_id]) - getDurationSlots(productMap[a.product_id]);
+        const durationDiff = b.durationSlots - a.durationSlots;
         if (durationDiff !== 0) return durationDiff;
 
-        return a.id - b.id;
+        return a.booking.id - b.booking.id;
       });
 
-    for (const bk of sorted) {
-      const slotIndex = slots.findIndex((s) => s === formatTime(bk.start_time));
+    const groups: typeof sorted[] = [];
+    let currentGroup: typeof sorted = [];
+    let currentGroupEnd = -1;
+
+    for (const item of sorted) {
+      if (currentGroup.length > 0 && item.slotIndex >= currentGroupEnd) {
+        groups.push(currentGroup);
+        currentGroup = [];
+      }
+
+      currentGroup.push(item);
+      currentGroupEnd = Math.max(currentGroupEnd, item.slotIndex + item.durationSlots);
+    }
+
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup);
+    }
+
+    const layout: {
+      booking: Booking;
+      lane: number;
+      laneCount: number;
+      slotIndex: number;
+      durationSlots: number;
+    }[] = [];
+
+    for (const group of groups) {
+      const laneEndSlots: number[] = [];
+      const groupLayout: Omit<(typeof layout)[number], 'laneCount'>[] = [];
+
+      for (const item of group) {
+        const availableLane = laneEndSlots.findIndex((endSlot) => endSlot <= item.slotIndex);
+        const lane = availableLane >= 0 ? availableLane : laneEndSlots.length;
+        laneEndSlots[lane] = item.slotIndex + item.durationSlots;
+
+        groupLayout.push({
+          booking: item.booking,
+          lane,
+          slotIndex: item.slotIndex,
+          durationSlots: item.durationSlots,
+        });
+      }
+
+      const laneCount = Math.max(laneEndSlots.length, 1);
+      for (const item of groupLayout) {
+        layout.push({ ...item, laneCount });
+      }
+    }
+
+    return layout;
+  }, [bookings, slots, productMap, service.id]);
+
+  const slotLoadMap = useMemo(() => {
+    const map = new Map<number, number>();
+
+    for (const booking of bookings) {
+      if (booking.service_id !== service.id || booking.status === BOOKING_STATUS.canceled) continue;
+
+      const slotIndex = slots.findIndex((s) => s === formatTime(booking.start_time));
       if (slotIndex < 0) continue;
 
-      const product = productMap[bk.product_id];
-      const durationSlots = getDurationSlots(product);
-      const colSpan = Math.min(Math.max(bk.pax || 1, 1), columns);
-
-      let colStart = -1;
-      for (let c = 0; c <= columns - colSpan; c++) {
-        let canPlace = true;
-        for (let offset = 0; offset < colSpan; offset++) {
-          if (colEndSlot[c + offset] > slotIndex) {
-            canPlace = false;
-            break;
-          }
-        }
-        if (canPlace) {
-          colStart = c;
-          break;
-        }
-      }
-      if (colStart < 0) colStart = 0;
-
-      for (let offset = 0; offset < colSpan; offset++) {
-        colEndSlot[colStart + offset] = slotIndex + durationSlots;
-      }
-      layout.push({ booking: bk, colStart, colSpan, slotIndex, durationSlots });
-    }
-    return layout;
-  }, [bookings, slots, columns, productMap, service.id]);
-
-  // Build occupied slots map: key "slotIndex-col" -> booking
-  const occupiedMap = useMemo(() => {
-    const map = new Map<string, Booking>();
-    for (const l of bookingLayout) {
-      for (let s = 0; s < l.durationSlots; s++) {
-        for (let c = 0; c < l.colSpan; c++) {
-          map.set(`${l.slotIndex + s}-${l.colStart + c}`, l.booking);
-        }
+      const durationSlots = getDurationSlots(productMap[booking.product_id]);
+      for (let slot = 0; slot < durationSlots; slot++) {
+        const key = slotIndex + slot;
+        map.set(key, (map.get(key) || 0) + Number(booking.pax || 1));
       }
     }
+
     return map;
+  }, [bookings, slots, productMap, service.id]);
+
+  const activeBookingSlotSet = useMemo(() => {
+    const set = new Set<number>();
+
+    for (const layout of bookingLayout) {
+      if (layout.booking.status === BOOKING_STATUS.canceled) continue;
+
+      for (let slot = 0; slot < layout.durationSlots; slot++) {
+        set.add(layout.slotIndex + slot);
+      }
+    }
+
+    return set;
   }, [bookingLayout]);
+
+  const getLaneStyle = (lane: number, laneCount: number) => {
+    if (laneCount <= 1) {
+      return { left: 0, width: '100%' };
+    }
+
+    const width = 100 / laneCount;
+    return {
+      left: `calc(${lane * width}% + 2px)`,
+      width: `calc(${width}% - 4px)`,
+    };
+  };
+
+  const getCapacityState = (slotIndex: number, isBlocked: boolean) => {
+    if (isBlocked) return 'blocked';
+
+    const occupied = slotLoadMap.get(slotIndex) || 0;
+    if (occupied >= capacity) return 'full';
+    if (occupied > 0) return 'busy';
+    return 'free';
+  };
+
+  const getCapacityLabel = (slotIndex: number, isBlocked: boolean) => {
+    if (isBlocked) return 'Блок';
+    return `${slotLoadMap.get(slotIndex) || 0}/${capacity}`;
+  };
+
+  const getCapacityPercent = (slotIndex: number, isBlocked: boolean) => {
+    if (isBlocked) return 100;
+    return Math.min(((slotLoadMap.get(slotIndex) || 0) / capacity) * 100, 100);
+  };
+
+  // Long press blocks time; the flag prevents the following click from creating a booking.
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggeredRef = useRef(false);
 
   // Map blocked times to slots
   const blockedLayout = useMemo(() => {
@@ -131,14 +212,12 @@ export default function DayCalendar({ service, bookings, products, blockedTimes,
     }
   }, [date, slots]);
 
-  const handleCellClick = (slotIndex: number, colIndex: number, slotTime: string) => {
-    const occupied = occupiedMap.get(`${slotIndex}-${colIndex}`);
-    if (occupied) {
-      navigate(`/bookings/${occupied.id}`);
+  const handleCellClick = (slotIndex: number, slotTime: string) => {
+    if (longPressTriggeredRef.current) {
+      longPressTriggeredRef.current = false;
       return;
     }
 
-    // Check if slot is blocked
     if (blockedSlotSet.has(slotIndex)) {
       // Find the blocked time for this slot to offer deletion
       const bl = blockedLayout.find((b) => {
@@ -170,6 +249,7 @@ export default function DayCalendar({ service, bookings, products, blockedTimes,
   const handleCellLongPress = (slotIndex: number, slotTime: string) => {
     // Don't block if already blocked or has bookings
     if (blockedSlotSet.has(slotIndex)) return;
+    if (activeBookingSlotSet.has(slotIndex)) return;
 
     Dialog.confirm({
       content: `Заблокувати час ${slotTime}?`,
@@ -198,11 +278,10 @@ export default function DayCalendar({ service, bookings, products, blockedTimes,
     });
   };
 
-  // Long press handler
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const onPointerDown = (slotIndex: number, slotTime: string) => {
+    longPressTriggeredRef.current = false;
     longPressTimerRef.current = setTimeout(() => {
+      longPressTriggeredRef.current = true;
       handleCellLongPress(slotIndex, slotTime);
       longPressTimerRef.current = null;
     }, 600);
@@ -212,15 +291,19 @@ export default function DayCalendar({ service, bookings, products, blockedTimes,
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
+    } else if (longPressTriggeredRef.current) {
+      setTimeout(() => {
+        longPressTriggeredRef.current = false;
+      }, 300);
     }
   };
 
   return (
-    <div ref={containerRef} style={{ overflow: 'auto', flex: 1, WebkitOverflowScrolling: 'touch' }}>
+    <div ref={containerRef} style={{ overflowY: 'auto', overflowX: 'hidden', flex: 1, WebkitOverflowScrolling: 'touch' }}>
       <div
         className="day-calendar"
         style={{
-          gridTemplateColumns: `${TIME_LABEL_WIDTH}px repeat(${columns}, ${COLUMN_WIDTH}px)`,
+          gridTemplateColumns: `${TIME_LABEL_WIDTH}px minmax(0, 1fr) ${CAPACITY_WIDTH}px`,
           position: 'relative',
         }}
       >
@@ -229,21 +312,39 @@ export default function DayCalendar({ service, bookings, products, blockedTimes,
             <div className="time-label" style={{ gridRow: si + 1, gridColumn: 1 }}>
               {time}
             </div>
-            {Array.from({ length: columns }, (_, ci) => {
+            {(() => {
               const isBlocked = blockedSlotSet.has(si);
+              const capacityState = getCapacityState(si, isBlocked);
 
               return (
-                <div
-                  key={ci}
-                  className={`slot-cell${isBlocked ? ' slot-blocked' : ''}`}
-                  style={{ gridRow: si + 1, gridColumn: ci + 2 }}
-                  onClick={() => handleCellClick(si, ci, time)}
-                  onPointerDown={() => onPointerDown(si, time)}
-                  onPointerUp={onPointerUp}
-                  onPointerLeave={onPointerUp}
-                />
+                <>
+                  <div
+                    className={`slot-cell${isBlocked ? ' slot-blocked' : ''}`}
+                    style={{ gridRow: si + 1, gridColumn: 2 }}
+                    onClick={() => handleCellClick(si, time)}
+                    onPointerDown={() => onPointerDown(si, time)}
+                    onPointerUp={onPointerUp}
+                    onPointerLeave={onPointerUp}
+                  />
+                  <div
+                    className={`slot-capacity slot-capacity-${capacityState}`}
+                    style={{ gridRow: si + 1, gridColumn: 3 }}
+                    onClick={() => handleCellClick(si, time)}
+                    onPointerDown={() => onPointerDown(si, time)}
+                    onPointerUp={onPointerUp}
+                    onPointerLeave={onPointerUp}
+                  >
+                    <span>{getCapacityLabel(si, isBlocked)}</span>
+                    <div className="slot-capacity-bar">
+                      <div
+                        className="slot-capacity-fill"
+                        style={{ width: `${getCapacityPercent(si, isBlocked)}%` }}
+                      />
+                    </div>
+                  </div>
+                </>
               );
-            })}
+            })()}
           </div>
         ))}
 
@@ -261,7 +362,8 @@ export default function DayCalendar({ service, bookings, products, blockedTimes,
             className="booking-span"
             style={{
               gridRow: `${layout.slotIndex + 1} / span ${layout.durationSlots}`,
-              gridColumn: `${layout.colStart + 2} / span ${layout.colSpan}`,
+              gridColumn: 2,
+              ...getLaneStyle(layout.lane, layout.laneCount),
             }}
           >
             <BookingCell
@@ -281,7 +383,7 @@ export default function DayCalendar({ service, bookings, products, blockedTimes,
               className="blocked-overlay"
               style={{
                 gridRow: `${bl.slotIndex + 1} / span ${heightSlots}`,
-                gridColumn: `2 / -1`,
+                gridColumn: `2 / 4`,
               }}
               onClick={() => {
                 Dialog.confirm({

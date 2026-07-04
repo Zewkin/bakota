@@ -33,8 +33,11 @@ export default function BookingCell({ booking, product, onClick }: Props) {
       style={{ backgroundColor: bgColor }}
       onClick={(e) => { e.stopPropagation(); onClick(booking); }}
     >
-      <div>{booking.customer_name}</div>
-      {booking.pax > 1 && <div>{booking.pax} pax</div>}
+      <div className="booking-title">{booking.customer_name}</div>
+      <div className="booking-meta">
+        <span>{booking.pax || 1} pax</span>
+        {product?.name && <span>{product.name}</span>}
+      </div>
     </div>
   );
 }
