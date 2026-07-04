@@ -5,6 +5,7 @@ import { deleteCustomer, getCustomer, getCustomers, updateCustomer } from '@/api
 import { getBookings } from '@/api/bookings';
 import { useAuthStore } from '@/stores/auth';
 import { isAdmin } from '@/utils/roles';
+import { formatDateFull } from '@/utils/format';
 import type { Customer, Booking } from '@/types';
 
 const CUSTOMER_SOURCE_OPTIONS = [
@@ -13,11 +14,6 @@ const CUSTOMER_SOURCE_OPTIONS = [
   { label: 'Порадили', value: 'Порадили' },
   { label: 'Інше', value: 'Інше' },
 ];
-
-const formatClientBookingDate = (date: string) => {
-  const [year, month, day] = String(date || '').slice(0, 10).split('-');
-  return year && month && day ? `${year}-${day}-${month}` : date;
-};
 
 export default function ClientsPage() {
   const navigate = useNavigate();
@@ -182,21 +178,28 @@ export default function ClientsPage() {
             )}
 
             <h4 style={{ marginTop: 16, marginBottom: 8 }}>Бронювання ({customerBookings.length})</h4>
-            <List>
-              {customerBookings.map((booking) => (
-                <List.Item
-                  key={booking.id}
-                  onClick={() => navigate(`/bookings/${booking.id}`)}
-                  description={formatClientBookingDate(booking.date_start)}
-                  extra={booking.product_name}
-                >
-                  #{booking.id} - {booking.customer_name}
-                </List.Item>
-              ))}
-              {customerBookings.length === 0 && (
+            {customerBookings.length > 0 ? (
+              <div className="client-bookings-table">
+                <div className="client-bookings-row client-bookings-head">
+                  <div>Дата</div>
+                  <div>Продукт</div>
+                </div>
+                {customerBookings.map((booking) => (
+                  <div
+                    key={booking.id}
+                    className="client-bookings-row"
+                    onClick={() => navigate(`/bookings/${booking.id}`)}
+                  >
+                    <div>{formatDateFull(booking.date_start)}</div>
+                    <div>{booking.product_name}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <List>
                 <List.Item>Немає бронювань</List.Item>
-              )}
-            </List>
+              </List>
+            )}
           </>
         )}
 

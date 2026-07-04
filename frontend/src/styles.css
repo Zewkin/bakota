@@ -167,7 +167,7 @@ body {
 }
 
 .booking-cell.past {
-  opacity: 0.5;
+  opacity: 0.72;
 }
 
 .booking-cell.canceled {
@@ -224,9 +224,63 @@ body {
   cursor: pointer;
   border-bottom: 3px solid transparent;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   transition: border-color 0.2s;
 }
 
 .service-tab.active {
   font-weight: 600;
+}
+
+.service-tab-alert {
+  min-width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: #2aa8ff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.client-bookings-table {
+  border: 1px solid #eeeeee;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.client-bookings-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid #eeeeee;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.client-bookings-row:first-child {
+  border-top: 0;
+}
+
+.client-bookings-row > div {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-bookings-head {
+  color: #999;
+  background: #fafafa;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: default;
 }

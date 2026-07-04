@@ -16,9 +16,8 @@ export default function BookingCell({ booking, product, onClick }: Props) {
   const isPast = bookingEnd.isBefore(now);
   const isCanceled = booking.status === BOOKING_STATUS.canceled;
 
-  const bgColor = product?.booking_color || '#1677ff';
-
   const isUnread = !booking.is_read;
+  const bgColor = isPast ? '#b8bec6' : product?.booking_color || '#1677ff';
 
   const classes = [
     'booking-cell',

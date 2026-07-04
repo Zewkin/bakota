@@ -3,32 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { SpinLoading } from 'antd-mobile';
 import { getBookings } from '@/api/bookings';
-import { getBlockedTime } from '@/api/blocked-time';
 import { useBookingsStore } from '@/stores/bookings';
 import { useServicesStore } from '@/stores/services';
 import ServiceTabs from '@/components/calendar/ServiceTabs';
-import type { BlockedTime, Booking, Product } from '@/types';
+import type { Booking } from '@/types';
 import { BOOKING_STATUS } from '@/types';
 
-const SLOT_MINUTES = 30;
-
-const timeToMinutes = (time: string) => {
-  const [hours = '0', minutes = '0'] = time.slice(0, 5).split(':');
-  return Number(hours) * 60 + Number(minutes);
-};
-
-const getDurationSlots = (product?: Product) => Math.max(1, Math.ceil((product?.hours || 1) * 2));
-
-type DayStatus = 'none' | 'booked' | 'full';
+type DayStatus = 'none' | 'past' | 'booked' | 'unread';
 
 export default function MonthViewPage() {
   const navigate = useNavigate();
   const { date, setDate } = useBookingsStore();
-  const { activeServiceId, services, products, fetchServices, fetchProducts } = useServicesStore();
+  const { activeServiceId, services, fetchServices } = useServicesStore();
   const activeService = services.find((s) => s.id === activeServiceId);
 
   const [bookings, setBookingsData] = useState<Booking[]>([]);
-  const [blockedTimes, setBlockedTimes] = useState<BlockedTime[]>([]);
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState(dayjs(date));
 
@@ -37,13 +26,11 @@ export default function MonthViewPage() {
 
   useEffect(() => {
     if (services.length === 0) fetchServices();
-    if (products.length === 0) fetchProducts();
-  }, [services.length, products.length, fetchServices, fetchProducts]);
+  }, [services.length, fetchServices]);
 
   useEffect(() => {
     if (!activeServiceId) {
       setBookingsData([]);
-      setBlockedTimes([]);
       setLoading(false);
       return;
     }
@@ -51,14 +38,10 @@ export default function MonthViewPage() {
     let active = true;
     setLoading(true);
 
-    Promise.all([
-      getBookings({ from, to, service_id: activeServiceId }),
-      getBlockedTime(activeServiceId),
-    ])
-      .then(([bookingsRes, blockedRes]) => {
+    getBookings({ from, to, service_id: activeServiceId })
+      .then((bookingsRes) => {
         if (!active) return;
         setBookingsData(bookingsRes.data);
-        setBlockedTimes(blockedRes.data);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -67,11 +50,8 @@ export default function MonthViewPage() {
     return () => { active = false; };
   }, [from, to, activeServiceId]);
 
-  const productMap = useMemo(() => Object.fromEntries(products.map((product) => [product.id, product])), [products]);
-
   const dayStatusMap = useMemo(() => {
     const map: Record<string, DayStatus> = {};
-    if (!activeService) return map;
 
     const grouped: Record<string, Booking[]> = {};
     for (const booking of bookings) {
@@ -81,59 +61,20 @@ export default function MonthViewPage() {
       grouped[day].push(booking);
     }
 
-    const blockedByDay: Record<string, BlockedTime[]> = {};
-    for (const block of blockedTimes) {
-      if (block.service_id !== activeService.id) continue;
-      const day = dayjs(block.start).format('YYYY-MM-DD');
-      if (day < from || day > to) continue;
-      blockedByDay[day] = blockedByDay[day] || [];
-      blockedByDay[day].push(block);
-    }
-
-    const serviceStartSlot = Math.floor(timeToMinutes(activeService.start_time) / SLOT_MINUTES);
-    const serviceEndSlot = Math.floor(timeToMinutes(activeService.end_time) / SLOT_MINUTES);
-    const serviceSlots = Array.from(
-      { length: Math.max(serviceEndSlot - serviceStartSlot, 0) },
-      (_, index) => serviceStartSlot + index
-    );
-    const capacity = Math.max(activeService.maxpax || 1, 1);
-    const daysWithActivity = new Set([...Object.keys(grouped), ...Object.keys(blockedByDay)]);
-
-    for (const day of daysWithActivity) {
-      const slotLoad = new Map<number, number>();
+    const today = dayjs().format('YYYY-MM-DD');
+    for (const day of Object.keys(grouped)) {
       const dayBookings = grouped[day] || [];
-      const dayBlocks = blockedByDay[day] || [];
-
-      for (const booking of dayBookings) {
-        const startSlot = Math.floor(timeToMinutes(booking.start_time) / SLOT_MINUTES);
-        const durationSlots = getDurationSlots(productMap[booking.product_id]);
-
-        for (let slot = 0; slot < durationSlots; slot++) {
-          const key = startSlot + slot;
-          slotLoad.set(key, (slotLoad.get(key) || 0) + booking.pax);
-        }
-      }
-
-      for (const block of dayBlocks) {
-        const startSlot = Math.floor(timeToMinutes(dayjs(block.start).format('HH:mm')) / SLOT_MINUTES);
-        const durationSlots = Math.max(1, Math.ceil(Number(block.blocked_hours || 1) * 2));
-
-        for (let slot = 0; slot < durationSlots; slot++) {
-          const key = startSlot + slot;
-          slotLoad.set(key, capacity);
-        }
-      }
-
-      const isFull = serviceSlots.length > 0 && serviceSlots.every((slot) => (slotLoad.get(slot) || 0) >= capacity);
-      if (isFull) {
-        map[day] = 'full';
-      } else if (dayBookings.length > 0) {
+      if (dayBookings.some((booking) => !booking.is_read)) {
+        map[day] = 'unread';
+      } else if (day < today) {
+        map[day] = 'past';
+      } else {
         map[day] = 'booked';
       }
     }
 
     return map;
-  }, [activeService, blockedTimes, bookings, from, productMap, to]);
+  }, [bookings]);
 
   const days = useMemo(() => {
     const arr = [];
@@ -153,7 +94,8 @@ export default function MonthViewPage() {
   };
 
   const getDotColor = (status: DayStatus) => {
-    if (status === 'full') return '#ff3141';
+    if (status === 'unread') return '#2aa8ff';
+    if (status === 'past') return '#b8bec6';
     if (status === 'booked') return '#00b578';
     return 'transparent';
   };

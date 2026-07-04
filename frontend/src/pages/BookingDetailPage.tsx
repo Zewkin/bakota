@@ -75,6 +75,8 @@ export default function BookingDetailPage() {
     : booking.product_price !== undefined
       ? Number(booking.product_price || 0) * Number(booking.pax || 1) * (1 - Number(booking.discount || 0) / 100)
       : null;
+  const bookingAvans = Number(booking.avans || 0);
+  const amountDue = bookingSum != null ? Math.max(bookingSum - bookingAvans, 0) : null;
 
   const statusColor = booking.status === 1 ? '#1677ff' : booking.status === 2 ? '#ff3141' : '#00b578';
 
@@ -117,6 +119,7 @@ export default function BookingDetailPage() {
             {booking.avans !== undefined && <div><b>Аванс:</b> {formatPrice(booking.avans)}</div>}
             {booking.discount !== undefined && <div><b>Знижка:</b> {booking.discount}%</div>}
             {bookingSum != null && <div><b>Сума:</b> {formatPrice(bookingSum)}</div>}
+            {isOpen && amountDue != null && <div><b>До оплати:</b> {formatPrice(amountDue)}</div>}
           </>
         )}
       </div>
@@ -148,6 +151,7 @@ export default function BookingDetailPage() {
           currentDiscount={booking.discount}
           productPrice={booking.product_price}
           pax={booking.pax}
+          avans={booking.avans}
           currentSoldprice={booking.soldprice}
         />
       )}

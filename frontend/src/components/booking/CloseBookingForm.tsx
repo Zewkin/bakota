@@ -11,10 +11,11 @@ interface Props {
   currentDiscount?: number;
   productPrice?: number;
   pax?: number;
+  avans?: number;
   currentSoldprice?: number | null;
 }
 
-export default function CloseBookingForm({ visible, onClose, onSubmit, currentDiscount, productPrice, pax = 1, currentSoldprice }: Props) {
+export default function CloseBookingForm({ visible, onClose, onSubmit, currentDiscount, productPrice, pax = 1, avans = 0, currentSoldprice }: Props) {
   const [instructor, setInstructor] = useState('');
   const [soldpriceType, setSoldpriceType] = useState(0);
   const [discount, setDiscount] = useState(currentDiscount ?? 0);
@@ -26,6 +27,9 @@ export default function CloseBookingForm({ visible, onClose, onSubmit, currentDi
     () => Number(productPrice || 0) * pax * (1 - discount / 100),
     [productPrice, pax, discount]
   );
+  const soldpriceValue = soldprice.trim() ? Number(soldprice) : calculatedSoldprice;
+  const safeSoldprice = Number.isFinite(soldpriceValue) ? soldpriceValue : 0;
+  const amountDue = Math.max(safeSoldprice - Number(avans || 0), 0);
 
   useEffect(() => {
     if (!priceManual) {
@@ -71,7 +75,16 @@ export default function CloseBookingForm({ visible, onClose, onSubmit, currentDi
               <span>{formatPrice(productPrice)} / pax</span>
             </Form.Item>
           )}
-          <Form.Item label="Сума">
+          <Form.Item label="Сума бронювання">
+            <b>{formatPrice(safeSoldprice)}</b>
+          </Form.Item>
+          <Form.Item label="Аванс">
+            <span>{formatPrice(avans)}</span>
+          </Form.Item>
+          <Form.Item label="До оплати">
+            <b>{formatPrice(amountDue)}</b>
+          </Form.Item>
+          <Form.Item label="Факт. сума">
             <Input
               type="number"
               value={soldprice}
