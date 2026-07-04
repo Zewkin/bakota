@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useServicesStore } from '@/stores/services';
 import { getBookings } from '@/api/bookings';
+import { BOOKING_STATUS } from '@/types';
 
 export default function ServiceTabs() {
   const { services, activeServiceId, setActiveService, fetchServices } = useServicesStore();
@@ -24,6 +25,7 @@ export default function ServiceTabs() {
 
         const nextCounts: Record<number, number> = {};
         for (const booking of res.data) {
+          if (booking.status === BOOKING_STATUS.canceled) continue;
           nextCounts[booking.service_id] = (nextCounts[booking.service_id] || 0) + 1;
         }
         setUnreadCounts(nextCounts);
