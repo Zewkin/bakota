@@ -6,6 +6,7 @@ import { createBooking, getBooking, updateBooking } from '@/api/bookings';
 import { getCustomer, getCustomers, updateCustomer } from '@/api/customers';
 import { ALLOWED_DISCOUNTS, CANAL_LABELS } from '@/types';
 import { formatPrice, generateTimeSlots } from '@/utils/format';
+import { formatPhone, formatPhoneInput, isValidPhone, normalizePhone } from '@/utils/phone';
 import type { Customer } from '@/types';
 
 const CUSTOMER_SOURCE_OPTIONS = [
@@ -69,7 +70,7 @@ export default function BookingFormPage() {
         if (!active) return;
 
         setCustomerId(booking.client_id);
-        setTel(booking.customer_tel || '');
+        setTel(formatPhone(booking.customer_tel || ''));
         setCustomerName(booking.customer_name || '');
         setServiceId(booking.service_id);
         setProductId(booking.product_id);
@@ -140,9 +141,13 @@ export default function BookingFormPage() {
   }, [selectedProduct, productId, calculatedPrice, priceManual]);
 
   const searchCustomer = async () => {
-    if (isEdit || tel.length < 3) return;
+    const phone = normalizePhone(tel);
+    if (phone) {
+      setTel(formatPhone(phone));
+    }
+    if (isEdit || phone.replace(/\D/g, '').length < 7) return;
     try {
-      const res = await getCustomers(tel);
+      const res = await getCustomers(phone);
       if (res.data.length > 0) {
         const customer = res.data[0];
         setFoundCustomer(customer);
@@ -161,6 +166,10 @@ export default function BookingFormPage() {
       Toast.show({ content: 'Заповніть всі обов\'язкові поля', icon: 'fail' });
       return;
     }
+    if (!isValidPhone(tel)) {
+      Toast.show({ content: 'Вкажіть телефон у міжнародному форматі', icon: 'fail' });
+      return;
+    }
     const soldprice = soldpriceInput.trim() ? Number(soldpriceInput) : undefined;
     if (soldprice !== undefined && (!Number.isFinite(soldprice) || soldprice < 0)) {
       Toast.show({ content: 'Вкажіть ціну коректно', icon: 'fail' });
@@ -169,8 +178,9 @@ export default function BookingFormPage() {
 
     setLoading(true);
     try {
+      const phone = normalizePhone(tel);
       const customerPayload = {
-        tel: tel.trim(),
+        tel: phone,
         name: customerName.trim(),
         comments: customerComments,
         ref,
@@ -226,11 +236,17 @@ export default function BookingFormPage() {
             <Input value={customerName} onChange={setCustomerName} placeholder="Ім'я клієнта" />
           </Form.Item>
           <Form.Item label="Телефон">
-            <Input value={tel} onChange={setTel} onBlur={searchCustomer} placeholder="+380..." />
+            <Input
+              type="tel"
+              value={tel}
+              onChange={(value) => setTel(formatPhoneInput(value))}
+              onBlur={searchCustomer}
+              placeholder="+380 (67) 123-45-67"
+            />
           </Form.Item>
           {foundCustomer && (
             <div style={{ padding: '4px 12px', fontSize: 12, color: '#00b578' }}>
-              Знайдено: {foundCustomer.name} ({foundCustomer.tel})
+              Знайдено: {foundCustomer.name} ({formatPhone(foundCustomer.tel)})
             </div>
           )}
           <Form.Item label="Коментар">

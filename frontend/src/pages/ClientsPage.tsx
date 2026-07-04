@@ -6,6 +6,7 @@ import { getBookings } from '@/api/bookings';
 import { useAuthStore } from '@/stores/auth';
 import { isAdmin } from '@/utils/roles';
 import { formatDateFull } from '@/utils/format';
+import { formatPhone, formatPhoneInput, isValidPhone, normalizePhone } from '@/utils/phone';
 import type { Customer, Booking } from '@/types';
 
 const CUSTOMER_SOURCE_OPTIONS = [
@@ -88,7 +89,7 @@ export default function ClientsPage() {
   const openEditCustomer = () => {
     if (!selectedCustomer) return;
     setEditName(selectedCustomer.name);
-    setEditTel(selectedCustomer.tel);
+    setEditTel(formatPhone(selectedCustomer.tel));
     setEditComments(selectedCustomer.comments || '');
     setEditRef(selectedCustomer.ref || '');
     setEditGroupFlag(selectedCustomer.group_flag);
@@ -96,16 +97,18 @@ export default function ClientsPage() {
   };
 
   const handleSaveCustomer = async () => {
-    if (!selectedCustomer || !editName.trim() || editTel.trim().length < 3) {
+    if (!selectedCustomer || !editName.trim() || !isValidPhone(editTel)) {
       Toast.show({ content: 'Заповніть ім\'я та телефон', icon: 'fail' });
       return;
     }
+
+    const phone = normalizePhone(editTel);
 
     setEditLoading(true);
     try {
       await updateCustomer(selectedCustomer.id, {
         name: editName.trim(),
-        tel: editTel.trim(),
+        tel: phone,
         comments: editComments,
         ref: editRef,
         group_flag: editGroupFlag,
@@ -161,7 +164,7 @@ export default function ClientsPage() {
         ) : (
           <>
             <div style={{ fontSize: 14, lineHeight: 2 }}>
-              <div><b>Телефон:</b> <a href={`tel:${selectedCustomer.tel}`}>{selectedCustomer.tel}</a></div>
+              <div><b>Телефон:</b> <a href={`tel:${normalizePhone(selectedCustomer.tel)}`}>{formatPhone(selectedCustomer.tel)}</a></div>
               {selectedCustomer.comments && <div><b>Коментар:</b> {selectedCustomer.comments}</div>}
               {selectedCustomer.ref && <div><b>Джерело:</b> {selectedCustomer.ref}</div>}
             </div>
@@ -209,7 +212,12 @@ export default function ClientsPage() {
                 <Input value={editName} onChange={setEditName} placeholder="Ім'я клієнта" />
               </Form.Item>
               <Form.Item label="Телефон">
-                <Input value={editTel} onChange={setEditTel} placeholder="+380..." />
+                <Input
+                  type="tel"
+                  value={editTel}
+                  onChange={(value) => setEditTel(formatPhoneInput(value))}
+                  placeholder="+380 (67) 123-45-67"
+                />
               </Form.Item>
               <Form.Item label="Коментар">
                 <TextArea value={editComments} onChange={setEditComments} rows={2} />
@@ -264,7 +272,7 @@ export default function ClientsPage() {
           <List.Item
             key={customer.id}
             onClick={() => handleSelectCustomer(customer)}
-            description={customer.tel}
+            description={formatPhone(customer.tel)}
           >
             {customer.name}
           </List.Item>

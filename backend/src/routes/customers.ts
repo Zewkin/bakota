@@ -2,9 +2,14 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { db } from '../db';
 import { ROLE } from '../utils/roles';
+import { isValidPhone, normalizePhone, normalizePhoneSearch } from '../utils/phone';
+
+const phoneSchema = z.string()
+  .transform((value) => normalizePhone(value))
+  .refine((value) => isValidPhone(value), { message: 'Invalid phone number' });
 
 const customerSchema = z.object({
-  tel: z.string().min(3),
+  tel: phoneSchema,
   name: z.string().min(1),
   comments: z.string().optional(),
   ref: z.string().optional(),
@@ -16,10 +21,15 @@ const customerUpdateSchema = customerSchema.partial();
 export async function customerRoutes(fastify: FastifyInstance) {
   fastify.get('/customers', { preHandler: fastify.authenticate }, async (request) => {
     const { search } = request.query as any;
+    const searchTerm = String(search || '').trim();
+    const phoneSearch = normalizePhoneSearch(searchTerm);
     const query = db('customers').select('*');
-    if (search) {
+    if (searchTerm) {
       query.where((qb) => {
-        qb.where('tel', 'like', `%${search}%`).orWhere('name', 'like', `%${search}%`);
+        qb.where('name', 'like', `%${searchTerm}%`);
+        if (phoneSearch) {
+          qb.orWhere('tel', 'like', `%${phoneSearch}%`);
+        }
       });
     }
     return query.orderBy('created_at', 'desc');

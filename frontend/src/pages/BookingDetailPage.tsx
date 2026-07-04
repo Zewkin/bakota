@@ -5,6 +5,7 @@ import { getBooking, markBookingRead, setBookingStatus, closeBooking, getBooking
 import { useAuthStore } from '@/stores/auth';
 import { canSeeFinancials, canCreateBooking } from '@/utils/roles';
 import { formatDateFull, formatTime, formatPrice } from '@/utils/format';
+import { formatPhone, normalizePhone } from '@/utils/phone';
 import { STATUS_LABELS, CANAL_LABELS, BOOKING_STATUS } from '@/types';
 import type { Booking } from '@/types';
 import type { CloseBookingPayload } from '@/api/bookings';
@@ -113,7 +114,7 @@ export default function BookingDetailPage() {
             booking.customer_name
           )}
         </div>
-        <div><b>Телефон:</b> <a href={`tel:${booking.customer_tel}`}>{booking.customer_tel}</a></div>
+        <div><b>Телефон:</b> <a href={`tel:${normalizePhone(booking.customer_tel)}`}>{formatPhone(booking.customer_tel)}</a></div>
         <div><b>Сервіс:</b> {booking.service_name}</div>
         <div><b>Продукт:</b> {booking.product_name}</div>
         <div><b>Дата:</b> {formatDateFull(booking.date_start)}</div>

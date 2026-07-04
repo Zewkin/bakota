@@ -2,9 +2,14 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { db } from '../db';
 import { ROLE } from '../utils/roles';
+import { isValidPhone, normalizePhone, normalizePhoneSearch } from '../utils/phone';
+
+const phoneSchema = z.string()
+  .transform((value) => normalizePhone(value))
+  .refine((value) => isValidPhone(value), { message: 'Invalid phone number' });
 
 const customerSchema = z.object({
-  tel: z.string().min(3),
+  tel: phoneSchema,
   name: z.string().min(1),
   comments: z.string().optional(),
   ref: z.string().optional(),
@@ -189,6 +194,7 @@ export async function bookingRoutes(fastify: FastifyInstance) {
     const { from, to, manager_id, service_id, status, product_id, customer_tel, unread_only } = request.query as any;
     const userId = request.user.id;
     const userType = request.user.type;
+    const phoneSearch = normalizePhoneSearch(customer_tel);
 
     const query = db('bookings')
       .select(
@@ -211,7 +217,7 @@ export async function bookingRoutes(fastify: FastifyInstance) {
     if (service_id) query.where('bookings.service_id', Number(service_id));
     if (status) query.where('bookings.status', Number(status));
     if (product_id) query.where('bookings.product_id', Number(product_id));
-    if (customer_tel) query.where('customers.tel', 'like', `%${customer_tel}%`);
+    if (phoneSearch) query.where('customers.tel', 'like', `%${phoneSearch}%`);
 
     const allowedServices = await getAccessibleServiceIds(userId, userType);
     if (allowedServices) {

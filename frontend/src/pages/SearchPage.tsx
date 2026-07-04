@@ -4,6 +4,7 @@ import { SearchBar, List, SpinLoading } from 'antd-mobile';
 import { getBookings } from '@/api/bookings';
 import type { Booking } from '@/types';
 import { formatDateFull, formatTime } from '@/utils/format';
+import { formatPhone } from '@/utils/phone';
 import { STATUS_LABELS } from '@/types';
 
 export default function SearchPage() {
@@ -44,7 +45,7 @@ export default function SearchPage() {
             description={`${b.service_name} | ${formatTime(b.start_time)} | ${STATUS_LABELS[b.status]}`}
             extra={formatDateFull(b.date_start)}
           >
-            {b.customer_name} ({b.customer_tel})
+            {b.customer_name} ({formatPhone(b.customer_tel)})
           </List.Item>
         ))}
         {!loading && search.length >= 3 && results.length === 0 && (
