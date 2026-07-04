@@ -78,4 +78,13 @@ export const formatPhone = (value: unknown) => {
   return `+${countryCode}${areaCode ? ` (${areaCode})` : ''}${tail ? ` ${hyphenatePhoneTail(tail)}` : ''}`;
 };
 
-export const formatPhoneInput = (value: string) => formatPhone(value);
+export const formatPhoneInput = (value: string, previousValue = '') => {
+  const formatted = formatPhone(value);
+
+  if (previousValue && value.length < previousValue.length && formatted === previousValue) {
+    const digits = normalizePhone(value).replace(/\D/g, '');
+    return digits ? formatPhone(`+${digits.slice(0, -1)}`) : '';
+  }
+
+  return formatted;
+};

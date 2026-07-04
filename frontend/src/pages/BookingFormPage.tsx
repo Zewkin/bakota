@@ -239,7 +239,7 @@ export default function BookingFormPage() {
             <Input
               type="tel"
               value={tel}
-              onChange={(value) => setTel(formatPhoneInput(value))}
+              onChange={(value) => setTel((previous) => formatPhoneInput(value, previous))}
               onBlur={searchCustomer}
               placeholder="+380 (67) 123-45-67"
             />

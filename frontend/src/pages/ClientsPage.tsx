@@ -215,7 +215,7 @@ export default function ClientsPage() {
                 <Input
                   type="tel"
                   value={editTel}
-                  onChange={(value) => setEditTel(formatPhoneInput(value))}
+                  onChange={(value) => setEditTel((previous) => formatPhoneInput(value, previous))}
                   placeholder="+380 (67) 123-45-67"
                 />
               </Form.Item>
