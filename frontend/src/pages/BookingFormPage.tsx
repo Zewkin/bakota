@@ -304,8 +304,16 @@ export default function BookingFormPage() {
             }}
           >
             {(_, actions) => (
-              <span onClick={actions.open} style={{ cursor: 'pointer' }}>
-                {serviceProducts.find((product) => product.id === productId)?.name || 'Оберіть продукт'}
+              <span
+                aria-disabled={!serviceId}
+                onClick={() => {
+                  if (serviceId) actions.open();
+                }}
+                style={{ color: serviceId ? undefined : '#bbb', cursor: serviceId ? 'pointer' : 'default' }}
+              >
+                {serviceId
+                  ? serviceProducts.find((product) => product.id === productId)?.name || 'Оберіть продукт'
+                  : 'Спочатку оберіть сервіс'}
               </span>
             )}
           </Picker>
