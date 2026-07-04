@@ -90,7 +90,7 @@ export default function BookingDetailPage() {
   const statusColor = booking.status === 1 ? '#1677ff' : booking.status === 2 ? '#ff3141' : '#00b578';
 
   return (
-    <div style={{ padding: 16, paddingBottom: 80 }}>
+    <div style={{ padding: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h3>Бронювання #{booking.id}</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
