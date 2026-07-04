@@ -6,9 +6,16 @@ import { BOOKING_STATUS } from '@/types';
 export default function ServiceTabs() {
   const { services, activeServiceId, setActiveService, fetchServices } = useServicesStore();
   const [unreadCounts, setUnreadCounts] = useState<Record<number, number>>({});
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (services.length === 0) fetchServices();
+  }, []);
+
+  useEffect(() => {
+    const handleReadUpdate = () => setRefreshKey((value) => value + 1);
+    window.addEventListener('booking-reads-updated', handleReadUpdate);
+    return () => window.removeEventListener('booking-reads-updated', handleReadUpdate);
   }, []);
 
   useEffect(() => {
@@ -35,7 +42,7 @@ export default function ServiceTabs() {
       });
 
     return () => { active = false; };
-  }, [services.length]);
+  }, [services.length, refreshKey]);
 
   const availableServiceIds = useMemo(() => new Set(services.map((service) => service.id)), [services]);
   const getUnreadCount = (serviceId: number) => availableServiceIds.has(serviceId) ? unreadCounts[serviceId] || 0 : 0;

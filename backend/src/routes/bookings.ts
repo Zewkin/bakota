@@ -41,6 +41,10 @@ const statusSchema = z.object({
   status: z.number().int().min(1).max(3)
 });
 
+const readServiceSchema = z.object({
+  service_id: z.number().int()
+});
+
 const FINANCIAL_FIELDS = ['avans', 'discount', 'soldprice', 'soldprice_type', 'product_price'] as const;
 
 const stripFinancialFields = (booking: Record<string, any>) => {
@@ -426,6 +430,35 @@ export async function bookingRoutes(fastify: FastifyInstance) {
       await db('booking_reads').insert({ booking_id: id, user_id: userId });
     }
     return { id };
+  });
+
+  fastify.post('/bookings/read-service', { preHandler: fastify.authenticate }, async (request, reply) => {
+    const body = readServiceSchema.parse(request.body);
+    const userId = request.user.id;
+    const allowedServices = await getAccessibleServiceIds(userId, request.user.type);
+
+    if (allowedServices && !(allowedServices as number[]).includes(body.service_id)) {
+      return reply.code(403).send({ message: 'No access to this service' });
+    }
+
+    const unreadBookings = await db('bookings')
+      .select('bookings.id')
+      .leftJoin('booking_reads', function () {
+        this.on('booking_reads.booking_id', '=', 'bookings.id')
+          .andOn('booking_reads.user_id', '=', db.raw('?', [userId]));
+      })
+      .where('bookings.service_id', body.service_id)
+      .whereNot('bookings.status', BOOKING_STATUS_CANCELED)
+      .whereNull('booking_reads.booking_id');
+
+    if (unreadBookings.length > 0) {
+      await db('booking_reads').insert(unreadBookings.map((booking: { id: number }) => ({
+        booking_id: booking.id,
+        user_id: userId
+      })));
+    }
+
+    return { count: unreadBookings.length };
   });
 
   fastify.get('/bookings/:id/message', { preHandler: fastify.authenticate }, async (request, reply) => {

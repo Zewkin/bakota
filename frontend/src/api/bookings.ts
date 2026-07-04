@@ -62,5 +62,8 @@ export const closeBooking = (id: number, data: CloseBookingPayload) =>
 export const markBookingRead = (id: number) =>
   api.post<{ id: number }>(`/bookings/${id}/read`);
 
+export const markServiceBookingsRead = (serviceId: number) =>
+  api.post<{ count: number }>('/bookings/read-service', { service_id: serviceId });
+
 export const getBookingMessage = (id: number) =>
   api.get<{ message: string }>(`/bookings/${id}/message`);

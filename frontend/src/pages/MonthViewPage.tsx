@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import { SpinLoading } from 'antd-mobile';
-import { getBookings } from '@/api/bookings';
+import { Button, Dialog, SpinLoading, Toast } from 'antd-mobile';
+import { getBookings, markServiceBookingsRead } from '@/api/bookings';
 import { useBookingsStore } from '@/stores/bookings';
 import { useServicesStore } from '@/stores/services';
 import ServiceTabs from '@/components/calendar/ServiceTabs';
@@ -19,6 +19,7 @@ export default function MonthViewPage() {
 
   const [bookings, setBookingsData] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [markingRead, setMarkingRead] = useState(false);
   const [month, setMonth] = useState(dayjs(date));
 
   const from = month.startOf('month').format('YYYY-MM-DD');
@@ -100,6 +101,38 @@ export default function MonthViewPage() {
     return 'transparent';
   };
 
+  const handleMarkServiceRead = async () => {
+    if (!activeServiceId || !activeService) return;
+
+    const confirmed = await Dialog.confirm({
+      content: `Позначити всі непрочитані бронювання сервісу «${activeService.name}» як прочитані? Скасовані бронювання не враховуються.`,
+      confirmText: 'Так, прочитати',
+      cancelText: 'Ні',
+    });
+    if (!confirmed) return;
+
+    setMarkingRead(true);
+    try {
+      const res = await markServiceBookingsRead(activeServiceId);
+      setBookingsData((items) => items.map((booking) => (
+        booking.service_id === activeServiceId && booking.status !== BOOKING_STATUS.canceled
+          ? { ...booking, is_read: true }
+          : booking
+      )));
+      window.dispatchEvent(new Event('booking-reads-updated'));
+      Toast.show({
+        content: res.data.count > 0
+          ? `Позначено прочитаними: ${res.data.count}`
+          : 'Немає непрочитаних бронювань',
+        icon: 'success',
+      });
+    } catch (err: any) {
+      Toast.show({ content: err.response?.data?.message || 'Не вдалося оновити', icon: 'fail' });
+    } finally {
+      setMarkingRead(false);
+    }
+  };
+
   return (
     <div style={{ paddingBottom: 80 }}>
       <ServiceTabs />
@@ -156,6 +189,16 @@ export default function MonthViewPage() {
                 );
               })}
             </div>
+            <Button
+              block
+              fill="outline"
+              color="primary"
+              loading={markingRead}
+              onClick={handleMarkServiceRead}
+              style={{ marginTop: 12 }}
+            >
+              Прочитати все
+            </Button>
           </>
         )}
       </div>
