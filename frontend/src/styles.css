@@ -313,3 +313,14 @@ body {
   font-weight: 600;
   cursor: default;
 }
+
+.adm-toast-mask .adm-toast-main {
+  max-width: min(280px, calc(100vw - 48px));
+  word-break: normal;
+  overflow-wrap: break-word;
+  text-align: center;
+}
+
+.adm-toast-mask .adm-toast-main-text {
+  text-align: center;
+}
