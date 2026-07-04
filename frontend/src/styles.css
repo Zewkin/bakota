@@ -236,9 +236,10 @@ body {
 }
 
 .service-tab-alert {
-  min-width: 16px;
-  height: 16px;
-  border-radius: 50%;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;

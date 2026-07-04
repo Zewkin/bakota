@@ -65,6 +65,15 @@ export default function BookingDetailPage() {
     setShowMessage(true);
   };
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate('/');
+  };
+
   if (loading || !booking) return <div style={{ padding: 24, textAlign: 'center' }}>Завантаження...</div>;
 
   const showFinancials = user && canSeeFinancials(user.type);
@@ -84,7 +93,10 @@ export default function BookingDetailPage() {
     <div style={{ padding: 16, paddingBottom: 80 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h3>Бронювання #{booking.id}</h3>
-        <Tag color={statusColor}>{STATUS_LABELS[booking.status] || booking.status}</Tag>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Button size="mini" fill="outline" onClick={handleBack}>Назад</Button>
+          <Tag color={statusColor}>{STATUS_LABELS[booking.status] || booking.status}</Tag>
+        </div>
       </div>
 
       <div style={{ fontSize: 14, lineHeight: 2 }}>

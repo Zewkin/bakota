@@ -37,23 +37,28 @@ export default function ServiceTabs() {
 
   const availableServiceIds = useMemo(() => new Set(services.map((service) => service.id)), [services]);
   const getUnreadCount = (serviceId: number) => availableServiceIds.has(serviceId) ? unreadCounts[serviceId] || 0 : 0;
+  const formatUnreadCount = (count: number) => count > 99 ? '99+' : String(count);
 
   return (
     <div className="service-tabs">
-      {services.map((svc) => (
-        <div
-          key={svc.id}
-          className={`service-tab ${svc.id === activeServiceId ? 'active' : ''}`}
-          style={{
-            borderBottomColor: svc.id === activeServiceId ? (svc.color || '#1677ff') : 'transparent',
-          }}
-          onClick={() => setActiveService(svc.id)}
-        >
-          {svc.icon && <span style={{ marginRight: 4 }}>{svc.icon}</span>}
-          {svc.name}
-          {getUnreadCount(svc.id) > 0 && <span className="service-tab-alert">!</span>}
-        </div>
-      ))}
+      {services.map((svc) => {
+        const unreadCount = getUnreadCount(svc.id);
+
+        return (
+          <div
+            key={svc.id}
+            className={`service-tab ${svc.id === activeServiceId ? 'active' : ''}`}
+            style={{
+              borderBottomColor: svc.id === activeServiceId ? (svc.color || '#1677ff') : 'transparent',
+            }}
+            onClick={() => setActiveService(svc.id)}
+          >
+            {svc.icon && <span style={{ marginRight: 4 }}>{svc.icon}</span>}
+            {svc.name}
+            {unreadCount > 0 && <span className="service-tab-alert">{formatUnreadCount(unreadCount)}</span>}
+          </div>
+        );
+      })}
     </div>
   );
 }
