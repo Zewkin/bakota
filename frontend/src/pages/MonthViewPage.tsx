@@ -105,8 +105,8 @@ export default function MonthViewPage() {
     if (!activeServiceId || !activeService) return;
 
     const confirmed = await Dialog.confirm({
-      content: `Позначити всі непрочитані бронювання сервісу «${activeService.name}» як прочитані? Скасовані бронювання не враховуються.`,
-      confirmText: 'Так, прочитати',
+      content: `Позначити всі непрочитані бронювання сервісу «${activeService.name}» як прочитані?`,
+      confirmText: 'Так',
       cancelText: 'Ні',
     });
     if (!confirmed) return;
