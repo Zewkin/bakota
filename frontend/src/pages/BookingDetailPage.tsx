@@ -95,8 +95,8 @@ export default function BookingDetailPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <h3>Бронювання #{booking.id}</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Button size="mini" fill="outline" onClick={handleBack}>Назад</Button>
           <Tag color={statusColor}>{STATUS_LABELS[booking.status] || booking.status}</Tag>
+          <Button size="mini" fill="outline" onClick={handleBack}>Назад</Button>
         </div>
       </div>
 
