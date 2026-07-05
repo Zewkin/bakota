@@ -147,8 +147,8 @@ export default function DayCalendar({ service, bookings, products, blockedTimes,
 
     const width = 100 / laneCount;
     return {
-      left: `calc(${lane * width}% + 2px)`,
-      width: `calc(${width}% - 4px)`,
+      left: `${lane * width}%`,
+      width: `${width}%`,
     };
   };
 
